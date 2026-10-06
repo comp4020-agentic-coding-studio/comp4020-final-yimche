@@ -20,3 +20,7 @@ mise.local.toml
 # your course API key, and this repo goes public when you ship. Your tracked
 # harness is CLAUDE.md (and any AGENTS.md), not this directory.
 .claude/
+
+# built from client/ by esbuild, and local game data
+public/app.js
+data/
