@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game, type Hooks } from "../server/game.ts";
+import { AWAY_GRACE_MS, ENDED_MS, Game, type Hooks } from "../server/game.ts";
 import {
   CATCH_COOLDOWN_SECONDS,
   CATCH_SECONDS,
@@ -34,6 +34,7 @@ function playing(h = hooks()) {
   const game = new Game(h);
   game.join("a", "A", 0);
   game.join("b", "B", 0);
+  expect(game.start("a", 0)).toBe(true); // a was in first, so a hosts
   game.tick(10_000, 0.05); // past the countdown
   expect(game.phase).toBe("playing");
   game.maze = maze;
@@ -41,6 +42,60 @@ function playing(h = hooks()) {
   const b = game.players.get("b")!;
   return { game, a, b, h };
 }
+
+describe("the first one in hosts the room", () => {
+  it("the first player in is the host, and the round waits for them to start it", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    expect(game.roster().host).toBe("a");
+    game.tick(60_000, 0.05);
+    expect(game.phase).toBe("waiting"); // nobody pressed start, so nothing starts
+    expect(game.start("a", 60_000)).toBe(true);
+    expect(game.phase).toBe("countdown");
+  });
+
+  it("only the host can start the round", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    expect(game.start("b", 0)).toBe(false);
+    expect(game.phase).toBe("waiting");
+  });
+
+  it("the host can't start a round alone", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    expect(game.start("a", 0)).toBe(false);
+    expect(game.phase).toBe("waiting");
+  });
+
+  it("if the host leaves for good, whoever came in next takes over", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    game.join("c", "C", 0);
+    game.leave("a", 0);
+    game.tick(AWAY_GRACE_MS / 2, 0.05);
+    expect(game.roster().host).toBe("a"); // a dropped connection keeps the job a while
+    game.tick(AWAY_GRACE_MS + 1, 0.05);
+    expect(game.roster().host).toBe("b");
+    expect(game.start("b", AWAY_GRACE_MS + 1)).toBe(true);
+  });
+
+  it("after a round everyone's back in the lobby until the host starts another", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 6.5, y: 2.5, facing: 0 });
+    game.tick(10_000, CATCH_SECONDS + 0.01);
+    expect(game.phase).toBe("ended");
+    game.tick(10_000 + ENDED_MS + 1, 0.05);
+    expect(game.phase).toBe("waiting");
+    expect(b.status).toBe("alive"); // caught last round, in the next one
+    game.tick(60_000, 0.05);
+    expect(game.phase).toBe("waiting");
+  });
+});
 
 describe("torchlight", () => {
   it("a wall stops the beam", () => {

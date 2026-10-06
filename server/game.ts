@@ -14,8 +14,9 @@ import {
   type Maze,
 } from "../shared/world.ts";
 
-// One shared room. The server owns every position and decides every catch;
+// One room of players. The server owns every position and decides every catch;
 // clients only send which way they want to go and where the torch points.
+// The first one in is the host, and the host says when a round starts.
 
 export type Phase = "waiting" | "countdown" | "playing" | "ended";
 export type Status = "alive" | "caught" | "spectating";
@@ -60,6 +61,7 @@ export class Game {
   roundId = 0;
   winner: string | null = null;
   players = new Map<string, Player>();
+  hostId: string | null = null;
   // bumped whenever the roster or round changes, so the transport knows to resend them
   rosterVersion = 0;
   roundVersion = 0;
@@ -100,6 +102,7 @@ export class Game {
       this.players.set(id, p);
       if (this.phase === "countdown") this.spawn([p]);
     }
+    this.hostId ??= id;
     this.rosterVersion++;
     this.advance(now);
     return p;
@@ -131,6 +134,11 @@ export class Game {
         this.players.delete(id);
         this.rosterVersion++;
       }
+    }
+    // the host walked off: whoever has been here longest takes over
+    if (this.hostId && !this.players.has(this.hostId)) {
+      this.hostId = [...this.players.values()].find((p) => p.connected)?.id ?? null;
+      this.rosterVersion++;
     }
     // in the lobby you can wander about while you wait, but nobody gets caught
     if (this.phase === "playing" || this.phase === "waiting") this.walk(dt);
@@ -215,15 +223,25 @@ export class Game {
     return events;
   }
 
+  // The host starts the round, once there's someone to play against. Anyone
+  // else asking is ignored. Returns whether the countdown began.
+  start(id: string, now: number): boolean {
+    if (id !== this.hostId || this.phase !== "waiting" || this.present().length < MIN_PLAYERS) return false;
+    this.startCountdown(now);
+    return true;
+  }
+
+  private present(): Player[] {
+    return [...this.players.values()].filter((p) => p.connected || p.status === "alive");
+  }
+
   // Moves the round between phases when its clock runs out or the room changes.
   private advance(now: number): void {
-    const present = [...this.players.values()].filter((p) => p.connected || p.status === "alive");
     switch (this.phase) {
       case "waiting":
-        if (present.length >= MIN_PLAYERS) this.startCountdown(now);
         break;
       case "countdown":
-        if (present.length < MIN_PLAYERS) this.setPhase("waiting", 0);
+        if (this.present().length < MIN_PLAYERS) this.setPhase("waiting", 0);
         else if (now >= this.phaseEndsAt) {
           const ids = this.alive().map((p) => p.id);
           this.roundId = this.hooks.roundStarted(this.seed, ids);
@@ -247,9 +265,11 @@ export class Game {
         break;
       }
       case "ended":
+        // back to the lobby: everyone's in again for the host's next round
         if (now >= this.phaseEndsAt) {
-          if (present.length >= MIN_PLAYERS) this.startCountdown(now);
-          else this.setPhase("waiting", 0);
+          for (const p of this.players.values()) p.status = "alive";
+          this.setPhase("waiting", 0);
+          this.rosterVersion++;
         }
         break;
     }
@@ -346,6 +366,7 @@ export class Game {
   roster() {
     return {
       t: "roster" as const,
+      host: this.hostId,
       alive: this.alive().length,
       total: [...this.players.values()].filter((p) => p.status !== "spectating").length,
       players: [...this.players.values()].map((p) => ({

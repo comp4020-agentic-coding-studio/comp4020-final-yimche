@@ -2,8 +2,8 @@
 
 The final project (crits 8, 9 and 10, then submission): Torchlight, hide and
 seek in a dark maze where everyone is the seeker. A few friends open the link,
-give a name, and play rounds in one shared room; their record stays on the
-board. Built on plain Node (TypeScript run directly), `ws`, `node:sqlite` and a
+give a name, and play rounds in a room the first of them hosts; their record
+stays on the board. Built on plain Node (TypeScript run directly), `ws`, `node:sqlite` and a
 canvas client bundled by esbuild, deployed to one Fly machine.
 
 These are the rules the agent works under here. They are mine, decided for this
@@ -18,7 +18,7 @@ app, and they are part of what gets marked.
   in `shared/world.ts`, used by both sides, so the beam a player sees is the
   beam they're judged by. Don't write a second copy on either side.
 - **Persistent state lives in SQLite** (`server/db.ts`) on the Fly volume at
-  `/data`, the only storage that survives a redeploy. The in-memory room is
+  `/data`, the only storage that survives a redeploy. The in-memory rooms are
   allowed to be lost on restart; records are not.
 - `PROCESS.md` and the reflections describe what actually happened. Don't
   claim a step, a source or a correction that the history doesn't show.
@@ -46,8 +46,8 @@ app, and they are part of what gets marked.
 - Test **contracts, not construction**: assert what the game does, so a test
   survives a rewrite of how it's built.
 - Match the house style: small commented modules, no framework, one process
-  and one room (the app is single-machine by `fly.toml`, and the shared room
-  depends on that).
+  holding every room in memory (the app is single-machine by `fly.toml`, and
+  players in a room only meet if they reach the same process).
 - `README.md` is the crit material and changes as the game does; update it in
   the same commit as a change to the rules.
 - Prose in this repo follows the house voice: no em-dashes.

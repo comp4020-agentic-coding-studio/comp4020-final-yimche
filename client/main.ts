@@ -40,6 +40,9 @@ const fog = document.createElement("canvas");
 const fctx = fog.getContext("2d")!;
 
 let myId = "";
+let hostId: string | null = null;
+// the room is in the link, so sharing the page shares the room
+let room = new URLSearchParams(location.search).get("room")?.toUpperCase() ?? "";
 let maze: Maze = { w: 1, h: 1, rows: ["#"] };
 let state: State | null = null;
 let roster: RosterEntry[] = [];
@@ -52,7 +55,7 @@ let lastFrame = performance.now();
 
 async function start(): Promise<void> {
   const res = await fetch("/api/me");
-  if (res.ok) return connect();
+  if (res.ok) return enter();
   const dialog = $<HTMLDialogElement>("join");
   dialog.showModal();
   $<HTMLFormElement>("join-form").addEventListener("submit", async (e) => {
@@ -64,8 +67,48 @@ async function start(): Promise<void> {
       return;
     }
     dialog.close();
-    connect();
+    enter();
   });
+}
+
+// A link with a room in it goes straight in; otherwise pick one, or make one.
+async function enter(): Promise<void> {
+  if (/^[A-Z]{4}$/.test(room)) return connect();
+  const dialog = $<HTMLDialogElement>("rooms");
+  const go = (code: string) => {
+    room = code;
+    history.replaceState(null, "", `/?room=${code}`);
+    dialog.close();
+    connect();
+  };
+  const { rooms } = (await (await fetch("/api/rooms")).json()) as {
+    rooms: { code: string; phase: string; players: number; host: string | null }[];
+  };
+  $("room-list").replaceChildren(
+    ...rooms.map((r) => {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "quiet";
+      b.textContent = r.code;
+      b.addEventListener("click", () => go(r.code));
+      const note = document.createElement("small");
+      const busy = r.phase === "waiting" ? "in the lobby" : "mid-round";
+      note.textContent = `${r.host ?? "nobody"}'s room, ${r.players} in, ${busy}`;
+      li.append(b, note);
+      return li;
+    }),
+  );
+  $("new-room").addEventListener("click", async () => {
+    go(((await (await fetch("/api/rooms", { method: "POST" })).json()) as { code: string }).code);
+  });
+  $<HTMLFormElement>("rooms-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const code = $<HTMLInputElement>("code").value.trim().toUpperCase();
+    if (/^[A-Z]{4}$/.test(code)) go(code);
+    else $("rooms-error").textContent = "A room code is four letters";
+  });
+  dialog.showModal();
 }
 
 let socket: WebSocket | null = null;
@@ -73,7 +116,7 @@ let retry = 500;
 
 function connect(): void {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+  const ws = new WebSocket(`${proto}://${location.host}/ws?room=${room}`);
   socket = ws;
   ws.onopen = () => {
     retry = 500;
@@ -82,6 +125,7 @@ function connect(): void {
   ws.onmessage = (ev) => handle(JSON.parse(ev.data));
   ws.onclose = (ev) => {
     if (ev.code === 4000) {
+      $("start").hidden = true;
       banner("Playing in another tab");
       return;
     }
@@ -97,6 +141,8 @@ function handle(msg: { t: string } & Record<string, any>): void {
   switch (msg.t) {
     case "hello":
       myId = msg.id;
+      $("room-code").textContent = msg.room;
+      document.title = `${msg.room} · Torchlight`;
       renderRoster();
       break;
     case "round": {
@@ -110,6 +156,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
     }
     case "roster":
       roster = msg.players;
+      hostId = msg.host;
       renderRoster();
       break;
     case "catch":
@@ -337,7 +384,31 @@ function frame(now: number): void {
   }
 
   banner(bannerText(state));
+  startButton(state);
 }
+
+// Only the host gets the button, and it only works with someone to play against.
+function startButton(s: State): void {
+  const button = $<HTMLButtonElement>("start");
+  const show = s.phase === "waiting" && myId !== "" && hostId === myId && socket?.readyState === WebSocket.OPEN;
+  if (button.hidden === show) button.hidden = !show;
+  const ready = roster.filter((p) => !p.away).length >= 2;
+  if (button.disabled === ready) button.disabled = !ready;
+}
+
+$("start").addEventListener("click", () => {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "start" }));
+  canvas.focus();
+});
+
+$("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(location.href);
+    $("copy").textContent = "Copied";
+  } catch {
+    $("copy").textContent = location.href;
+  }
+});
 
 function dot(x: number, y: number, colour: string, label: string): void {
   const sx = offX + x * scale;
@@ -368,8 +439,12 @@ function bannerText(s: State): string {
   if (socket?.readyState !== WebSocket.OPEN) return currentBanner;
   const secs = Math.ceil(s.remainingMs / 1000);
   switch (s.phase) {
-    case "waiting":
-      return "Waiting for one more seeker…";
+    case "waiting": {
+      const others = roster.filter((p) => p.id !== myId && !p.away).length;
+      if (hostId === myId) return others === 0 ? "Send a friend the link to play" : "Start when everyone's in";
+      const host = roster.find((p) => p.id === hostId)?.name ?? "the host";
+      return `Waiting for ${host} to start`;
+    }
     case "countdown":
       return `Lights out in ${secs}`;
     case "ended":
@@ -413,7 +488,8 @@ function renderRoster(): void {
         name.textContent = p.name;
         name.className = p.status;
         const note = document.createElement("small");
-        note.textContent = p.away ? "away" : p.status === "spectating" ? "next round" : p.status === "caught" ? "caught" : "";
+        const role = p.id === hostId ? "host" : "";
+        note.textContent = p.away ? "away" : p.status === "spectating" ? "next round" : p.status === "caught" ? "caught" : role;
         li.append(name, note);
         return li;
       }),

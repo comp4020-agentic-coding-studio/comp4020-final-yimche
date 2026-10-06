@@ -19,9 +19,16 @@
       <section class="stage" aria-label="Maze">
         <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys."></canvas>
         <div id="banner" class="banner" role="status" aria-live="polite"></div>
+        <button id="start" class="start" type="button" hidden>Start the round</button>
       </section>
 
       <aside>
+        <section aria-labelledby="room-h">
+          <h2 id="room-h">Room</h2>
+          <p class="room"><span id="room-code" class="code">—</span>
+            <button id="copy" type="button" class="quiet">Copy link</button>
+            <a href="/">Other rooms</a></p>
+        </section>
         <section aria-labelledby="tracker-h">
           <h2 id="tracker-h">Still in the dark</h2>
           <p id="count" class="count">—</p>
@@ -53,6 +60,18 @@
         <input id="name" name="name" maxlength="16" required autocomplete="nickname" />
         <p id="join-error" class="error" role="alert"></p>
         <button type="submit">Enter the dark</button>
+      </form>
+    </dialog>
+
+    <dialog id="rooms">
+      <form method="dialog" id="rooms-form">
+        <h2>Pick a room</h2>
+        <ul id="room-list" class="room-list"></ul>
+        <button id="new-room" type="button">Make a new room</button>
+        <label for="code">Or type a friend's code</label>
+        <input id="code" name="code" maxlength="4" autocomplete="off" autocapitalize="characters" />
+        <p id="rooms-error" class="error" role="alert"></p>
+        <button type="submit" class="quiet">Join</button>
       </form>
     </dialog>
   </body>

@@ -10,8 +10,14 @@ async function signUp(name: string): Promise<string> {
   return res.headers.get("set-cookie")!.split(";")[0];
 }
 
-function open(cookie: string): Promise<{ ws: WebSocket; messages: any[] }> {
-  const url = new URL("/ws", baseUrl);
+async function newRoom(): Promise<string> {
+  const res = await fetch(new URL("/api/rooms", baseUrl), { method: "POST" });
+  expect(res.status).toBe(200);
+  return (await res.json()).code;
+}
+
+function open(cookie: string, room = "TEST"): Promise<{ ws: WebSocket; messages: any[] }> {
+  const url = new URL(`/ws?room=${room}`, baseUrl);
   url.protocol = url.protocol.replace("http", "ws");
   const ws = new WebSocket(url, { headers: { cookie } });
   const messages: any[] = [];
@@ -49,9 +55,10 @@ it("won't open a game socket for someone without a name", async () => {
 });
 
 it("a second player shows up on the first player's tracker within a second", async () => {
-  const one = await open(await signUp("first"));
+  const room = await newRoom();
+  const one = await open(await signUp("first"), room);
   const cookie = await signUp("second");
-  const two = await open(cookie);
+  const two = await open(cookie, room);
   const secondId = await within(1000, () => two.messages.find((m) => m.t === "hello")?.id);
   const started = Date.now();
   await within(1000, () =>
@@ -60,4 +67,27 @@ it("a second player shows up on the first player's tracker within a second", asy
   expect(Date.now() - started).toBeLessThan(1000);
   one.ws.close();
   two.ws.close();
+});
+
+it("rooms are separate: someone in another room doesn't show up on your tracker", async () => {
+  const [mine, theirs] = [await newRoom(), await newRoom()];
+  const one = await open(await signUp("here"), mine);
+  const two = await open(await signUp("there"), theirs);
+  const twoId = await within(1000, () => two.messages.find((m) => m.t === "hello")?.id);
+  await new Promise((r) => setTimeout(r, 300));
+  const rosters = one.messages.filter((m) => m.t === "roster");
+  expect(rosters.length).toBeGreaterThan(0);
+  expect(rosters.some((m) => m.players.some((p: any) => p.id === twoId))).toBe(false);
+  one.ws.close();
+  two.ws.close();
+});
+
+it("the first one into a new room is its host, and the room is listed", async () => {
+  const room = await newRoom();
+  const one = await open(await signUp("hostie"), room);
+  const oneId = await within(1000, () => one.messages.find((m) => m.t === "hello")?.id);
+  await within(1000, () => one.messages.find((m) => m.t === "roster" && m.host === oneId));
+  const { rooms } = await (await fetch(new URL("/api/rooms", baseUrl))).json();
+  expect(rooms).toContainEqual(expect.objectContaining({ code: room, host: "hostie" }));
+  one.ws.close();
 });
