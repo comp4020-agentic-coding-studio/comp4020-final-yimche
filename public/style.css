@@ -1,0 +1,244 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --panel: #151922;
+  --text: #e8e6df;
+  --muted: #9a9caa;
+  --torch: #ffd77a;
+  --danger: #ff6b5b;
+  --line: #262b38;
+  font-family: system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--torch);
+}
+
+.tag {
+  margin: 0;
+  color: var(--muted);
+  flex: 1;
+}
+
+a {
+  color: var(--torch);
+}
+
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 18rem;
+  gap: 1rem;
+  padding: 1rem;
+  min-height: 0;
+}
+
+.stage {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: calc(100dvh - 6rem);
+  touch-action: none;
+  border-radius: 6px;
+}
+
+canvas:focus-visible {
+  outline: 2px solid var(--torch);
+  outline-offset: 2px;
+}
+
+.banner {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgb(0 0 0 / 0.7);
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.banner:empty {
+  display: none;
+}
+
+aside {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+aside section {
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+aside h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.count {
+  font-size: 1.6rem;
+  margin: 0 0 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.roster,
+.feed,
+.board {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.95rem;
+}
+
+.roster li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.15rem 0;
+}
+
+.roster .caught {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.roster .you {
+  color: var(--torch);
+}
+
+.roster small {
+  color: var(--muted);
+}
+
+.feed li,
+.board li {
+  padding: 0.15rem 0;
+}
+
+.help {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+kbd {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 0.25rem;
+}
+
+dialog {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: min(22rem, 90vw);
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.75);
+}
+
+dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+dialog h2 {
+  margin: 0 0 0.5rem;
+}
+
+input,
+button {
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+input {
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  background: var(--torch);
+  color: #1b1500;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.error {
+  color: var(--danger);
+  margin: 0;
+  min-height: 1.2em;
+}
+
+@media (max-width: 760px) {
+  main {
+    grid-template-columns: 1fr;
+    padding: 0.5rem;
+  }
+
+  .stage {
+    height: min(100vw, 70dvh);
+  }
+
+  .tag {
+    display: none;
+  }
+}
+
+/* the README page */
+body.readme main {
+  display: block;
+  max-width: 42rem;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+body.readme img {
+  max-width: 100%;
+}

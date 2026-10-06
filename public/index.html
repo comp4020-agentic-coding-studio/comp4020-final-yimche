@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Torchlight</title>
+    <meta name="description" content="Hide and seek in a dark maze where everyone is the seeker." />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Torchlight</h1>
+      <p class="tag">Everyone seeks. Hold your torch on someone's back to catch them.</p>
+      <a href="/readme/">About</a>
+    </header>
+
+    <main>
+      <section class="stage" aria-label="Maze">
+        <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys."></canvas>
+        <div id="banner" class="banner" role="status" aria-live="polite"></div>
+      </section>
+
+      <aside>
+        <section aria-labelledby="tracker-h">
+          <h2 id="tracker-h">Still in the dark</h2>
+          <p id="count" class="count">—</p>
+          <ul id="roster" class="roster"></ul>
+        </section>
+        <section aria-labelledby="feed-h">
+          <h2 id="feed-h">Catches</h2>
+          <ol id="feed" class="feed" aria-live="polite"></ol>
+        </section>
+        <section aria-labelledby="me-h">
+          <h2 id="me-h">Your record</h2>
+          <p id="record">—</p>
+        </section>
+        <section aria-labelledby="board-h">
+          <h2 id="board-h">Best seekers</h2>
+          <ol id="board" class="board"></ol>
+        </section>
+        <p class="help">
+          Move: <kbd>WASD</kbd> / arrows, or drag on the maze. Aim: your torch points where you walk,
+          or at the mouse.
+        </p>
+      </aside>
+    </main>
+
+    <dialog id="join">
+      <form method="dialog" id="join-form">
+        <h2>Who's in the maze?</h2>
+        <label for="name">Your name</label>
+        <input id="name" name="name" maxlength="16" required autocomplete="nickname" />
+        <p id="join-error" class="error" role="alert"></p>
+        <button type="submit">Enter the dark</button>
+      </form>
+    </dialog>
+  </body>
+</html>
