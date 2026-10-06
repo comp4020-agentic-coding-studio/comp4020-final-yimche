@@ -421,7 +421,7 @@ function dot(x: number, y: number, colour: string, label: string): void {
   ctx.fillText(label, sx, sy - PLAYER_RADIUS * scale - 4);
 }
 
-// A ring while a head-on bump shields a pair from catching each other: steady
+// A ring while a head-on bump or stand-off shields a pair from catching each other: steady
 // while a torch holds the stun, then flashing once the countdown runs, faster
 // in its last second so the end is no surprise.
 function shield(x: number, y: number, cooldownMs: number, held: boolean, now: number): void {
@@ -453,8 +453,8 @@ function bannerText(s: State): string {
       if (s.me?.status === "caught") return "Caught! Watching until the next round";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
       if (s.me?.lit) return "You're in someone's light. Move!";
-      if (s.me?.cooldownHeld) return "Bumped! Stunned until the light comes off";
-      if (s.me?.cooldownMs) return `Bumped! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
+      if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
+      if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
       return "";
   }
 }

@@ -189,6 +189,35 @@ describe("catching only counts from behind", () => {
     expect(b.status).toBe("caught"); // the stun's over, the exposure counts again
   });
 
+  it("two torches on each other stun the pair, like a bump, even from across a room", () => {
+    const { game, a, b } = playing();
+    const cooldown = CATCH_COOLDOWN_SECONDS * 1000;
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 }); // a looks east at b
+    Object.assign(b, { x: 6.5, y: 2.5, facing: Math.PI }); // b looks west at a: a stand-off
+    game.tick(10_000, 0.05);
+    expect(game.viewFor("a", 10_000).me?.cooldownHeld).toBe(true);
+
+    b.facing = 0; // b turns tail, back to a's torch
+    game.tick(10_050, CATCH_SECONDS + 0.1);
+    expect(b.status).toBe("alive"); // a's torch is still on b, so the stun holds
+
+    a.facing = -Math.PI / 2; // a looks away, then back once the countdown runs out
+    game.tick(10_100, 0.05);
+    a.facing = 0;
+    game.tick(10_100 + cooldown - 100, CATCH_SECONDS + 0.1);
+    expect(b.status).toBe("alive");
+    game.tick(10_100 + cooldown + 100, CATCH_SECONDS + 0.1);
+    expect(b.status).toBe("caught");
+  });
+
+  it("one torch on someone's back is not a stand-off", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 6.5, y: 2.5, facing: 0 }); // b's torch points away from a
+    game.tick(10_000, 0.05);
+    expect(game.viewFor("a", 10_000).me?.cooldownHeld).toBe(false);
+  });
+
   it("bumping again during the countdown starts the stun over", () => {
     const { game, a, b } = playing();
     const cooldown = CATCH_COOLDOWN_SECONDS * 1000;

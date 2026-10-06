@@ -35,7 +35,7 @@ export interface Player extends Body {
   input: { dx: number; dy: number; aim: number | null };
   // how long each other player has had this one's beam on them
   exposure: Map<string, number>;
-  // other player id -> when a head-on bump with them stops blocking a catch
+  // other player id -> when a bump or stand-off with them stops blocking a catch
   cooldownUntil: Map<string, number>;
   // other players this one bumped and still has a torch between: the cooldown
   // stays full until the light comes off, and only then starts counting down
@@ -164,24 +164,26 @@ export class Game {
     for (const target of alive) target.lit = false;
 
     // A head-on bump: close enough to touch, and neither one snuck up on the
-    // other. Doesn't catch anyone, but stuns the pair: a beam between them
-    // doesn't count while either torch stays on the other, nor for a few
+    // other. Or a stand-off: each one caught in the other's torch at once.
+    // Either way nobody is caught, but the pair is stunned: a beam between
+    // them doesn't count while either torch stays on the other, nor for a few
     // seconds after it comes off, so a stare-down in a corridor doesn't turn
-    // into an instant trade. Bumping again starts the stun over.
+    // into an instant trade. Meeting again starts the stun over.
     for (let i = 0; i < alive.length; i++) {
       for (let j = i + 1; j < alive.length; j++) {
         const [a, b] = [alive[i], alive[j]];
-        const bumped =
+        const touching =
           Math.hypot(a.x - b.x, a.y - b.y) <= COLLIDE_DISTANCE &&
           !isBehind(a, b) &&
           !isBehind(b, a); // one of them had the other's back
+        const bumped = touching || (inBeam(this.maze, a, b) && inBeam(this.maze, b, a));
         if (bumped) {
           a.cooldownHeld.add(b.id);
           b.cooldownHeld.add(a.id);
         }
         if (!a.cooldownHeld.has(b.id)) continue;
         if (!inBeam(this.maze, a, b) && !inBeam(this.maze, b, a)) {
-          // the light's off: let the countdown run, and don't hold again until another bump
+          // the light's off: let the countdown run, and don't hold again until they meet again
           a.cooldownHeld.delete(b.id);
           b.cooldownHeld.delete(a.id);
           if (!bumped) continue;
@@ -339,7 +341,7 @@ export class Game {
         p.status === "alive" &&
         (seesAll || canSee(this.maze, me, p)),
     );
-    // how long a bump with each player still shields the pair, so both can see it
+    // how long a bump or stand-off with each player still shields the pair, so both can see it
     const cooldownMs = (p: Player) => (me ? Math.max(0, (me.cooldownUntil.get(p.id) ?? 0) - now) : 0);
     return {
       t: "state" as const,

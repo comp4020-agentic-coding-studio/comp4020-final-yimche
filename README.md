@@ -22,8 +22,10 @@ still in the dark wins the round.
    Every ten seconds the whole maze flashes into view for a moment, and
    everyone still in shows up with it. A countdown in the corner says when the
    next flash is coming: get your bearings, and don't be caught in the open.
-6. Walk into someone head-on and you both get a short stun: neither of you can
-   catch the other until the light comes off and the countdown runs out.
+6. Walk into someone head-on, or catch each other in your torches at the same
+   time, and you both get a short stun: neither of you can catch the other
+   until the light comes off and the countdown runs out. Turning tail out of a
+   stand-off doesn't hand the other one a free catch.
 
 Anyone who arrives mid-round watches and joins the next one. When a round
 ends, everyone is back in the lobby, wandering the old maze, until the host
