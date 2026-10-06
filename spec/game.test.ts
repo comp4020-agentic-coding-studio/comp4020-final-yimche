@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { Game, type Hooks } from "../server/game.ts";
-import { CATCH_COOLDOWN_SECONDS, CATCH_SECONDS, canSee, inBeam, type Maze } from "../shared/world.ts";
+import {
+  CATCH_COOLDOWN_SECONDS,
+  CATCH_SECONDS,
+  FLASH_EVERY_MS,
+  FLASH_MS,
+  canSee,
+  inBeam,
+  type Maze,
+} from "../shared/world.ts";
 
 // The rules of the game, checked on the server's own logic rather than over
 // the wire: these are the claims a browser can't be trusted to enforce.
@@ -56,6 +64,22 @@ describe("fog of war is enforced by the server", () => {
     expect(game.viewFor("a", 0).others).toEqual([]);
     a.facing = Math.PI;
     expect(game.viewFor("a", 0).others.map((o) => o.id)).toEqual(["b"]);
+  });
+
+  it("the maze flashes into view every so often, but players stay hidden", () => {
+    const { game, a, b } = playing(); // lights went out at 10_000
+    Object.assign(a, { x: 5.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 2.5, y: 2.5, facing: Math.PI / 2 }); // behind a, torch away
+    expect(game.viewFor("a", 10_000 + FLASH_EVERY_MS - 1).flashMs).toBe(0);
+
+    const flashAt = 10_000 + FLASH_EVERY_MS;
+    game.tick(flashAt, 0);
+    expect(game.viewFor("a", flashAt).flashMs).toBe(FLASH_MS);
+    expect(game.viewFor("a", flashAt).others).toEqual([]);
+    expect(game.viewFor("a", flashAt + FLASH_MS).flashMs).toBe(0);
+
+    game.tick(flashAt + FLASH_EVERY_MS, 0); // and again
+    expect(game.viewFor("a", flashAt + FLASH_EVERY_MS).flashMs).toBe(FLASH_MS);
   });
 });
 

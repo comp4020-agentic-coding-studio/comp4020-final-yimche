@@ -9,6 +9,8 @@ export const AURA_RADIUS = 1.3; // what you can see around you without the torch
 export const CATCH_SECONDS = 0.4; // how long a beam has to stay on someone
 export const COLLIDE_DISTANCE = PLAYER_RADIUS * 2.2; // close enough to call it a bump
 export const CATCH_COOLDOWN_SECONDS = 3; // a head-on bump buys both of you this long
+export const FLASH_EVERY_MS = 15000; // how often the whole maze flashes into view
+export const FLASH_MS = 1000; // how long a flash takes to fade back to dark
 
 export interface Maze {
   w: number;

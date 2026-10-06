@@ -2,6 +2,7 @@ import {
   AURA_RADIUS,
   BEAM_HALF_ANGLE,
   BEAM_RANGE,
+  FLASH_MS,
   PLAYER_RADIUS,
   castRay,
   type Maze,
@@ -20,6 +21,7 @@ interface Seen {
 interface State {
   phase: Phase;
   remainingMs: number;
+  flashMs: number;
   me?: { x: number; y: number; facing: number; status: Status; lit: boolean; cooldownMs: number; cooldownHeld: boolean };
   others: Seen[];
 }
@@ -280,11 +282,15 @@ function frame(now: number): void {
     ctx.fill();
   }
 
+  // a flash lifts the dark off the whole maze, then lets it settle back
+  const flash = Math.min(1, state.flashMs / FLASH_MS);
+
   // the dark: everything outside your torch and your little circle of sight
   if (playing && state.phase !== "ended") {
     fctx.globalCompositeOperation = "source-over";
     fctx.clearRect(0, 0, fog.width, fog.height);
-    fctx.fillStyle = state.phase === "playing" ? "rgb(0 0 0 / 0.8)" : "rgb(0 0 0 / 0.5)";
+    const dark = state.phase === "playing" ? 0.8 * (1 - flash) : 0.5;
+    fctx.fillStyle = `rgb(0 0 0 / ${dark})`;
     fctx.fillRect(0, 0, fog.width, fog.height);
     fctx.globalCompositeOperation = "destination-out";
     fctx.fillStyle = "#000";
@@ -294,6 +300,10 @@ function frame(now: number): void {
     fctx.arc(offX + drawn.x * scale, offY + drawn.y * scale, AURA_RADIUS * scale, 0, Math.PI * 2);
     fctx.fill();
     ctx.drawImage(fog, 0, 0);
+  }
+  if (flash > 0) {
+    ctx.fillStyle = `rgb(220 230 255 / ${0.35 * flash ** 3})`;
+    ctx.fillRect(offX, offY, maze.w * scale, maze.h * scale);
   }
 
   // people

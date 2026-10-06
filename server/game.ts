@@ -3,6 +3,8 @@ import {
   CATCH_COOLDOWN_SECONDS,
   CATCH_SECONDS,
   COLLIDE_DISTANCE,
+  FLASH_EVERY_MS,
+  FLASH_MS,
   SPEED,
   canSee,
   inBeam,
@@ -61,6 +63,10 @@ export class Game {
   // bumped whenever the roster or round changes, so the transport knows to resend them
   rosterVersion = 0;
   roundVersion = 0;
+  // Every so often the whole maze flashes into view for everyone at once, so you
+  // can get your bearings. It lights the walls only: players stay hidden.
+  flashStartedAt = -Infinity;
+  nextFlashAt = Infinity;
   private hooks: Hooks;
   private seed = Date.now();
 
@@ -222,9 +228,15 @@ export class Game {
           const ids = this.alive().map((p) => p.id);
           this.roundId = this.hooks.roundStarted(this.seed, ids);
           this.setPhase("playing", 0);
+          this.flashStartedAt = -Infinity;
+          this.nextFlashAt = now + FLASH_EVERY_MS;
         }
         break;
       case "playing": {
+        if (now >= this.nextFlashAt) {
+          this.flashStartedAt = this.nextFlashAt;
+          this.nextFlashAt += FLASH_EVERY_MS;
+        }
         // someone away past the grace period was dropped in tick(), which forfeits
         const alive = this.alive();
         if (alive.length <= 1) {
@@ -312,6 +324,7 @@ export class Game {
       t: "state" as const,
       phase: this.phase,
       remainingMs: this.phaseEndsAt ? Math.max(0, this.phaseEndsAt - now) : 0,
+      flashMs: this.phase === "playing" ? Math.max(0, this.flashStartedAt + FLASH_MS - now) : 0,
       me: me && {
         x: me.x,
         y: me.y,
