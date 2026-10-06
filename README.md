@@ -15,6 +15,8 @@ still in the dark wins the round.
    Your torch points where you walk, or at the mouse.
 4. You can only see what your torch lights, plus a small circle around you.
    Keep your beam on someone's back and they're out.
+   Every fifteen seconds the whole maze flashes into view for a moment, so you
+   can get your bearings. It shows the walls, never the other players.
 5. Walk into someone head-on and you both get a short stun: neither of you can
    catch the other until the light comes off and the countdown runs out.
 
@@ -45,6 +47,9 @@ chat, not a game for strangers at scale. So good means:
 - Classic maze generation (a recursive backtracker), then "braided" so there
   are no dead ends. A maze with dead ends is a trap in a game about being
   hunted; loops let you circle round behind someone.
+- Corridors alone made every chase a straight line, so a few open halls are
+  knocked through each maze. In a hall you can circle and dodge a beam, but
+  there's nowhere to hide while you cross it.
 - Grid raycasting (the DDA technique from old first-person engines) for the
   torch beam and line of sight, shared between server and client.
 

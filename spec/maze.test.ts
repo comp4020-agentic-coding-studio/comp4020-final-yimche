@@ -24,6 +24,25 @@ describe("the maze", () => {
     }
   });
 
+  it("opens into halls as well as corridors", () => {
+    // corridors keep a pillar on every even square, so a 3×3 patch of open
+    // floor can only be a hall
+    const halls = (m: Maze) => {
+      let n = 0;
+      for (let y = 1; y < m.h - 2; y++) {
+        for (let x = 1; x < m.w - 2; x++) {
+          let open = true;
+          for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) open &&= floor(m, x + dx, y + dy);
+          if (open) n++;
+        }
+      }
+      return n;
+    };
+    for (const seed of [1, 2, 3, 42, 1234]) {
+      expect(halls(generateMaze(mazeCells(2), seed)), `no hall (seed ${seed})`).toBeGreaterThan(0);
+    }
+  });
+
   it("every room can be reached", () => {
     const m = generateMaze(14, 7);
     const seen = new Set(["1,1"]);

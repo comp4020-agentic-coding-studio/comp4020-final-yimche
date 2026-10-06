@@ -18,6 +18,32 @@ export function mazeCells(players: number): number {
   return Math.min(22, 13 + players);
 }
 
+// Knocks a few blocks of 2 or 3 rooms a side fully open, pillars and all, so
+// the corridors open now and then into halls: room to circle and dodge a beam,
+// and a risk to cross, since there's nowhere to hide in one. Halls don't touch
+// each other, so they stay separate places joined by corridors.
+function carveHalls(grid: string[][], cells: number, rand: () => number): void {
+  const taken = new Set<string>();
+  const count = Math.max(2, Math.floor(cells / 5));
+  for (let placed = 0, tries = 0; placed < count && tries < 50; tries++) {
+    const cw = 2 + Math.floor(rand() * 2);
+    const ch = 2 + Math.floor(rand() * 2);
+    const cx = Math.floor(rand() * (cells - cw + 1));
+    const cy = Math.floor(rand() * (cells - ch + 1));
+    const block: string[] = [];
+    // the hall plus a ring of rooms around it, so two halls never merge
+    for (let y = cy - 1; y <= cy + ch; y++) {
+      for (let x = cx - 1; x <= cx + cw; x++) block.push(`${x},${y}`);
+    }
+    if (block.some((c) => taken.has(c))) continue;
+    for (const c of block) taken.add(c);
+    for (let y = cy * 2 + 1; y <= (cy + ch - 1) * 2 + 1; y++) {
+      for (let x = cx * 2 + 1; x <= (cx + cw - 1) * 2 + 1; x++) grid[y][x] = ".";
+    }
+    placed++;
+  }
+}
+
 // A recursive-backtracker maze of cells×cells rooms, then "braided": every
 // dead end is opened up and more walls knocked out at random, so corridors
 // form loops you can circle round to come up behind someone.
@@ -53,7 +79,7 @@ export function generateMaze(cells: number, seed: number): Maze {
   }
   // Open every dead end into a neighbouring corridor. Only walls between two
   // rooms are removed, never the pillars at the corners, so it stays a maze of
-  // corridors rather than opening into halls.
+  // corridors; the halls come after, on purpose.
   const inside = (x: number, y: number) => x > 0 && y > 0 && x < size - 1 && y < size - 1;
   for (let cy = 0; cy < cells; cy++) {
     for (let cx = 0; cx < cells; cx++) {
@@ -78,5 +104,6 @@ export function generateMaze(cells: number, seed: number): Maze {
       if (between && grid[y][x] === "#" && rand() < 0.15) grid[y][x] = ".";
     }
   }
+  carveHalls(grid, cells, rand);
   return { w: size, h: size, rows: grid.map((r) => r.join("")) };
 }
