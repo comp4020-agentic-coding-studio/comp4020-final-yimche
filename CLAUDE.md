@@ -26,7 +26,9 @@ app, and they are part of what gets marked.
 ## What the app must keep doing
 
 - **Fog of war is enforced by the server.** A player's view never contains
-  the position of someone they can't see. `spec/game.test.ts` guards it.
+  the position of someone they can't see. The one exception is the flash every
+  ten seconds, which the server decides and times for everyone at once.
+  `spec/game.test.ts` guards both.
 - **A name is all it takes to play,** and a returning cookie gets the same
   player and record back. That's the core flow; `spec/multiplayer.test.ts`
   guards it.

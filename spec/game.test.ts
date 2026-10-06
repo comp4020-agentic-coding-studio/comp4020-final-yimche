@@ -66,17 +66,23 @@ describe("fog of war is enforced by the server", () => {
     expect(game.viewFor("a", 0).others.map((o) => o.id)).toEqual(["b"]);
   });
 
-  it("the maze flashes into view every so often, but players stay hidden", () => {
+  it("a flash every ten seconds shows everyone still in, then the dark comes back", () => {
     const { game, a, b } = playing(); // lights went out at 10_000
     Object.assign(a, { x: 5.5, y: 2.5, facing: 0 });
     Object.assign(b, { x: 2.5, y: 2.5, facing: Math.PI / 2 }); // behind a, torch away
-    expect(game.viewFor("a", 10_000 + FLASH_EVERY_MS - 1).flashMs).toBe(0);
+    const before = game.viewFor("a", 10_000 + FLASH_EVERY_MS - 1);
+    expect(FLASH_EVERY_MS).toBe(10_000);
+    expect(before.flashMs).toBe(0);
+    expect(before.nextFlashMs).toBe(1); // the countdown the player sees
+    expect(before.others).toEqual([]);
 
     const flashAt = 10_000 + FLASH_EVERY_MS;
     game.tick(flashAt, 0);
     expect(game.viewFor("a", flashAt).flashMs).toBe(FLASH_MS);
-    expect(game.viewFor("a", flashAt).others).toEqual([]);
+    expect(game.viewFor("a", flashAt).nextFlashMs).toBe(FLASH_EVERY_MS);
+    expect(game.viewFor("a", flashAt).others.map((o) => o.id)).toEqual(["b"]);
     expect(game.viewFor("a", flashAt + FLASH_MS).flashMs).toBe(0);
+    expect(game.viewFor("a", flashAt + FLASH_MS).others).toEqual([]);
 
     game.tick(flashAt + FLASH_EVERY_MS, 0); // and again
     expect(game.viewFor("a", flashAt + FLASH_EVERY_MS).flashMs).toBe(FLASH_MS);

@@ -64,7 +64,7 @@ export class Game {
   rosterVersion = 0;
   roundVersion = 0;
   // Every so often the whole maze flashes into view for everyone at once, so you
-  // can get your bearings. It lights the walls only: players stay hidden.
+  // can get your bearings, and for that moment everyone still in shows up too.
   flashStartedAt = -Infinity;
   nextFlashAt = Infinity;
   private hooks: Hooks;
@@ -311,7 +311,8 @@ export class Game {
   // the browser: a hidden player's position never leaves the server.
   viewFor(id: string, now: number) {
     const me = this.players.get(id);
-    const seesAll = !me || me.status !== "alive" || this.phase !== "playing";
+    const flashMs = this.phase === "playing" ? Math.max(0, this.flashStartedAt + FLASH_MS - now) : 0;
+    const seesAll = !me || me.status !== "alive" || this.phase !== "playing" || flashMs > 0;
     const visible = [...this.players.values()].filter(
       (p) =>
         p.id !== id &&
@@ -324,7 +325,8 @@ export class Game {
       t: "state" as const,
       phase: this.phase,
       remainingMs: this.phaseEndsAt ? Math.max(0, this.phaseEndsAt - now) : 0,
-      flashMs: this.phase === "playing" ? Math.max(0, this.flashStartedAt + FLASH_MS - now) : 0,
+      flashMs,
+      nextFlashMs: this.phase === "playing" ? Math.max(0, this.nextFlashAt - now) : 0,
       me: me && {
         x: me.x,
         y: me.y,

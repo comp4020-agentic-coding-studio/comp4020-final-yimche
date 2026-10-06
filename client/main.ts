@@ -22,6 +22,7 @@ interface State {
   phase: Phase;
   remainingMs: number;
   flashMs: number;
+  nextFlashMs: number;
   me?: { x: number; y: number; facing: number; status: Status; lit: boolean; cooldownMs: number; cooldownHeld: boolean };
   others: Seen[];
 }
@@ -317,6 +318,15 @@ function frame(now: number): void {
   if (playing && me) {
     dot(drawn.x, drawn.y, me.lit ? "#ff6b5b" : "#ffd77a", "you");
     if (state.phase === "playing") shield(drawn.x, drawn.y, me.cooldownMs, me.cooldownHeld, now);
+  }
+
+  // when the next flash comes, in the corner where it doesn't cover the maze
+  if (state.phase === "playing" && state.nextFlashMs > 0) {
+    const dpr = devicePixelRatio || 1;
+    ctx.font = `${14 * dpr}px system-ui`;
+    ctx.textAlign = "right";
+    ctx.fillStyle = flash > 0 ? "#e8e6df" : "rgb(232 230 223 / 0.7)";
+    ctx.fillText(`Flash in ${Math.ceil(state.nextFlashMs / 1000)}`, canvas.width - 12 * dpr, 22 * dpr);
   }
 
   // a red edge when someone's torch is on you

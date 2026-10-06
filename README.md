@@ -15,8 +15,9 @@ still in the dark wins the round.
    Your torch points where you walk, or at the mouse.
 4. You can only see what your torch lights, plus a small circle around you.
    Keep your beam on someone's back and they're out.
-   Every fifteen seconds the whole maze flashes into view for a moment, so you
-   can get your bearings. It shows the walls, never the other players.
+   Every ten seconds the whole maze flashes into view for a moment, and
+   everyone still in shows up with it. A countdown in the corner says when the
+   next flash is coming: get your bearings, and don't be caught in the open.
 5. Walk into someone head-on and you both get a short stun: neither of you can
    catch the other until the light comes off and the countdown runs out.
 
