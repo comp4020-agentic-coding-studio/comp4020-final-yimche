@@ -8,8 +8,10 @@ import { move, PLAYER_RADIUS, type Maze } from "../shared/world.ts";
 const floor = (m: Maze, x: number, y: number) => m.rows[y]?.[x] === ".";
 
 describe("the maze", () => {
-  it("is big enough for two players to lose each other", () => {
-    expect(generateMaze(mazeCells(2), 1).w).toBeGreaterThanOrEqual(31);
+  it("is small enough that two players run into each other, and big enough to lose one", () => {
+    const w = generateMaze(mazeCells(2), 1).w;
+    expect(w).toBeGreaterThanOrEqual(19);
+    expect(w).toBeLessThanOrEqual(23);
   });
 
   it("grows with the room, so a crowd has as much space each as a pair", () => {
@@ -47,6 +49,21 @@ describe("the maze", () => {
     };
     for (const seed of [1, 2, 3, 42, 1234]) {
       expect(halls(generateMaze(mazeCells(2), seed)), `no hall (seed ${seed})`).toBeGreaterThan(0);
+    }
+  });
+
+  it("has more open halls as it grows, not just more corridor", () => {
+    // count the knocked-out pillars: corridors never lose one, so each is hall floor
+    const pillars = (m: Maze) => {
+      let n = 0;
+      for (let y = 2; y < m.h - 1; y += 2) for (let x = 2; x < m.w - 1; x += 2) if (floor(m, x, y)) n++;
+      return n;
+    };
+    for (const seed of [1, 2, 3]) {
+      const small = generateMaze(mazeCells(2), seed);
+      const big = generateMaze(mazeCells(8), seed);
+      expect(pillars(small), `seed ${seed}`).toBeGreaterThanOrEqual(3);
+      expect(pillars(big), `seed ${seed}`).toBeGreaterThan(pillars(small) * 2);
     }
   });
 

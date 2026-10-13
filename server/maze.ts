@@ -13,12 +13,11 @@ export function rng(seed: number): () => number {
 }
 
 // How many rooms across the maze is for a given crowd. It grows by area, about
-// a hundred rooms each, so a crowd has as much space to hide as a pair; never
-// smaller than two players need to lose each other, and capped so the whole
-// maze still fits legibly on a phone.
-export const ROOMS_PER_PLAYER = 110;
-export const MIN_CELLS = 15;
-export const MAX_CELLS = 25;
+// fifty rooms each, so a crowd has as much space to hide as a pair and a pair
+// still runs into each other; capped so the whole maze fits legibly on a phone.
+export const ROOMS_PER_PLAYER = 50;
+export const MIN_CELLS = 10;
+export const MAX_CELLS = 20;
 export function mazeCells(players: number): number {
   return Math.max(MIN_CELLS, Math.min(MAX_CELLS, Math.round(Math.sqrt(players * ROOMS_PER_PLAYER))));
 }
@@ -29,8 +28,9 @@ export function mazeCells(players: number): number {
 // each other, so they stay separate places joined by corridors.
 function carveHalls(grid: string[][], cells: number, rand: () => number): void {
   const taken = new Set<string>();
-  const count = Math.max(2, Math.floor(cells / 5));
-  for (let placed = 0, tries = 0; placed < count && tries < 50; tries++) {
+  // about one hall for every thirty rooms of maze
+  const count = Math.max(3, Math.round((cells * cells) / 30));
+  for (let placed = 0, tries = 0; placed < count && tries < 300; tries++) {
     const cw = 2 + Math.floor(rand() * 2);
     const ch = 2 + Math.floor(rand() * 2);
     const cx = Math.floor(rand() * (cells - cw + 1));
@@ -106,7 +106,7 @@ export function generateMaze(cells: number, seed: number): Maze {
   for (let y = 1; y < size - 1; y++) {
     for (let x = 1; x < size - 1; x++) {
       const between = (x % 2 === 0) !== (y % 2 === 0);
-      if (between && grid[y][x] === "#" && rand() < 0.15) grid[y][x] = ".";
+      if (between && grid[y][x] === "#" && rand() < 0.22) grid[y][x] = ".";
     }
   }
   carveHalls(grid, cells, rand);

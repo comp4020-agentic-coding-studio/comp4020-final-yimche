@@ -42,9 +42,10 @@ still in the dark wins the round.
    - **Teleport**: drops you in a random room well away from everyone, and
      breaks any beam that was on your back.
 
-The maze is sized for the room when the host presses Start: about a hundred
-rooms of maze per player, so six players have as much space each as two, up
-to a size that still fits on a phone.
+The maze is sized for the room when the host presses Start: about fifty
+rooms of maze per player, so two players keep running into each other and
+six have as much space each as two, up to a size that still fits on a phone.
+Bigger mazes get more open halls, not just more corridor.
 
 Anyone who arrives mid-round watches and joins the next one. When a round
 ends, everyone is back in the lobby, wandering the old maze, until the host
