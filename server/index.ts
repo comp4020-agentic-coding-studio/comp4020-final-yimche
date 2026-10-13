@@ -6,6 +6,7 @@ import { marked } from "marked";
 import { WebSocketServer, type WebSocket } from "ws";
 import { store } from "./db.ts";
 import { Game } from "./game.ts";
+import { KINDS } from "../shared/world.ts";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const TICK_MS = 50;
@@ -45,7 +46,9 @@ function readmePage(): string {
   const body = marked.parse(readFileSync(join(import.meta.dirname, "..", "README.md"), "utf8"));
   return `<!doctype html><html lang="en-AU"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>About · Torchlight</title><link rel="stylesheet" href="/style.css"></head>
+<title>About · Torchlight</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/style.css"></head>
 <body class="readme"><main><p><a href="/">← Back to the maze</a></p>${body}</main></body></html>`;
 }
 
@@ -185,6 +188,7 @@ server.on("upgrade", (req, socket, head) => {
           game.setInput(player.id, num(msg.dx), num(msg.dy), aim);
         }
         if (msg.t === "start") game.start(player.id, Date.now());
+        if (msg.t === "use" && KINDS.includes(msg.kind)) game.use(player.id, msg.kind, Date.now());
       } catch {
         // ignore anything that isn't our protocol
       }

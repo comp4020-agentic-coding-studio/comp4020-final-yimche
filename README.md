@@ -26,6 +26,16 @@ still in the dark wins the round.
    time, and you both get a short stun: neither of you can catch the other
    until the light comes off and the countdown runs out. Turning tail out of a
    stand-off doesn't hand the other one a free catch.
+7. Powerups lie about the maze and glow through the dark. Walk over one to
+   pick it up; it's yours until you use it, with <kbd>1</kbd>, <kbd>2</kbd>
+   and <kbd>3</kbd> or by tapping it. You carry one of each kind at most, and
+   a fresh one turns up every few seconds.
+   - **Speed**: a few seconds of running faster.
+   - **X-ray**: for a few seconds your torch sees through walls. It shows you
+     where people are, but it only catches someone in the open, never through
+     a wall.
+   - **Teleport**: drops you in a random room well away from everyone, and
+     breaks any beam that was on your back.
 
 The maze is sized for the room when the host presses Start: about a hundred
 rooms of maze per player, so six players have as much space each as two, up

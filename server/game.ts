@@ -5,12 +5,20 @@ import {
   COLLIDE_DISTANCE,
   FLASH_EVERY_MS,
   FLASH_MS,
+  KINDS,
+  PICKUP_EVERY_MS,
+  PICKUP_RADIUS,
   SPEED,
+  SPEED_BOOST,
+  SPEED_MS,
+  XRAY_MS,
   canSee,
   inBeam,
   isBehind,
+  isWall,
   move,
   type Body,
+  type Kind,
   type Maze,
 } from "../shared/world.ts";
 
@@ -41,6 +49,17 @@ export interface Player extends Body {
   // stays full until the light comes off, and only then starts counting down
   cooldownHeld: Set<string>;
   lit: boolean;
+  // powerups picked up and not yet used, and when the timed ones wear off
+  items: Set<Kind>;
+  speedUntil: number;
+  xrayUntil: number;
+}
+
+export interface Pickup {
+  id: number;
+  kind: Kind;
+  x: number;
+  y: number;
 }
 
 export interface Hooks {
@@ -69,6 +88,10 @@ export class Game {
   // can get your bearings, and for that moment everyone still in shows up too.
   flashStartedAt = -Infinity;
   nextFlashAt = Infinity;
+  // powerups lying in the maze this round, and when the next one turns up
+  pickups: Pickup[] = [];
+  nextPickupAt = Infinity;
+  private pickupIds = 0;
   private hooks: Hooks;
   private seed = Date.now();
 
@@ -98,6 +121,9 @@ export class Game {
         cooldownUntil: new Map(),
         cooldownHeld: new Set(),
         lit: false,
+        items: new Set(),
+        speedUntil: 0,
+        xrayUntil: 0,
       };
       this.players.set(id, p);
       if (this.phase === "countdown") this.spawn([p]);
@@ -141,20 +167,87 @@ export class Game {
       this.rosterVersion++;
     }
     // in the lobby you can wander about while you wait, but nobody gets caught
-    if (this.phase === "playing" || this.phase === "waiting") this.walk(dt);
+    if (this.phase === "playing" || this.phase === "waiting") this.walk(now, dt);
+    if (this.phase === "playing") this.pickUp(now);
     const events = this.phase === "playing" ? this.catches(now, dt) : [];
     this.advance(now);
     return events;
   }
 
-  private walk(dt: number): void {
+  private walk(now: number, dt: number): void {
     for (const p of this.alive()) {
       if (p.input.dx !== 0 || p.input.dy !== 0) {
-        move(this.maze, p, p.input.dx * SPEED * dt, p.input.dy * SPEED * dt);
+        const speed = SPEED * (p.speedUntil > now ? SPEED_BOOST : 1);
+        move(this.maze, p, p.input.dx * speed * dt, p.input.dy * speed * dt);
         p.facing = Math.atan2(p.input.dy, p.input.dx);
       }
       if (p.input.aim !== null) p.facing = p.input.aim;
     }
+  }
+
+  // Walking over a powerup picks it up, unless you're already carrying one of
+  // that kind; then it stays where it is for someone else. A fresh one turns
+  // up every so often, so a long round doesn't run dry.
+  private pickUp(now: number): void {
+    for (const p of this.alive()) {
+      this.pickups = this.pickups.filter((it) => {
+        if (p.items.has(it.kind) || Math.hypot(it.x - p.x, it.y - p.y) > PICKUP_RADIUS) return true;
+        p.items.add(it.kind);
+        return false;
+      });
+    }
+    if (now >= this.nextPickupAt) {
+      if (this.pickups.length < this.pickupCap()) this.scatter(1);
+      this.nextPickupAt = now + PICKUP_EVERY_MS;
+    }
+  }
+
+  private pickupCap(): number {
+    return this.alive().length + 2;
+  }
+
+  // Drops powerups on free rooms, never right next to a player, so nobody
+  // starts a round on top of one.
+  private scatter(count: number): void {
+    const rooms = this.rooms().filter(
+      ([x, y]) =>
+        !this.pickups.some((it) => it.x === x && it.y === y) &&
+        this.alive().every((p) => Math.hypot(p.x - x, p.y - y) > 3),
+    );
+    for (let i = 0; i < count && rooms.length > 0; i++) {
+      const [x, y] = rooms.splice(Math.floor(Math.random() * rooms.length), 1)[0];
+      const kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+      this.pickups.push({ id: ++this.pickupIds, kind, x, y });
+    }
+  }
+
+  private rooms(): [number, number][] {
+    const rooms: [number, number][] = [];
+    for (let y = 1; y < this.maze.h; y += 2) {
+      for (let x = 1; x < this.maze.w; x += 2) if (!isWall(this.maze, x, y)) rooms.push([x + 0.5, y + 0.5]);
+    }
+    return rooms;
+  }
+
+  // Uses a powerup you're carrying, mid-round only. A speed boost and an x-ray
+  // torch last a few seconds; a teleport drops you in a random room well away
+  // from everyone else. Returns whether it was used.
+  use(id: string, kind: Kind, now: number): boolean {
+    const p = this.players.get(id);
+    if (!p || p.status !== "alive" || this.phase !== "playing" || !p.items.has(kind)) return false;
+    p.items.delete(kind);
+    if (kind === "speed") p.speedUntil = now + SPEED_MS;
+    if (kind === "xray") p.xrayUntil = now + XRAY_MS;
+    if (kind === "teleport") {
+      const others = this.alive().filter((o) => o !== p);
+      const far = this.rooms().filter(([x, y]) => others.every((o) => Math.hypot(o.x - x, o.y - y) > 4));
+      const pool = far.length > 0 ? far : this.rooms();
+      [p.x, p.y] = pool[Math.floor(Math.random() * pool.length)];
+      // a fresh start: whatever beam was on you is broken
+      p.exposure.clear();
+      for (const o of others) o.exposure.delete(p.id);
+    }
+    return true;
   }
 
   private catches(now: number, dt: number): CatchEvent[] {
@@ -250,6 +343,8 @@ export class Game {
           this.setPhase("playing", 0);
           this.flashStartedAt = -Infinity;
           this.nextFlashAt = now + FLASH_EVERY_MS;
+          this.scatter(this.pickupCap());
+          this.nextPickupAt = now + PICKUP_EVERY_MS;
         }
         break;
       case "playing": {
@@ -260,6 +355,8 @@ export class Game {
         // someone away past the grace period was dropped in tick(), which forfeits
         const alive = this.alive();
         if (alive.length <= 1) {
+          this.pickups = [];
+          this.nextPickupAt = Infinity;
           this.winner = alive[0]?.id ?? null;
           this.hooks.roundEnded(this.roundId, this.winner);
           this.setPhase("ended", now + ENDED_MS);
@@ -289,7 +386,11 @@ export class Game {
       p.cooldownUntil.clear();
       p.cooldownHeld.clear();
       p.lit = false;
+      p.items.clear();
+      p.speedUntil = 0;
+      p.xrayUntil = 0;
     }
+    this.pickups = [];
     this.spawn(players);
     this.setPhase("countdown", now + COUNTDOWN_MS);
     this.rosterVersion++;
@@ -298,10 +399,7 @@ export class Game {
   // Spreads players out: each takes the free room farthest from everyone placed so far.
   private spawn(players: Player[]): void {
     const rand = rng(this.seed ^ players.length);
-    const rooms: [number, number][] = [];
-    for (let y = 1; y < this.maze.h; y += 2) {
-      for (let x = 1; x < this.maze.w; x += 2) rooms.push([x + 0.5, y + 0.5]);
-    }
+    const rooms = this.rooms();
     const placed = this.alive()
       .filter((p) => !players.includes(p))
       .map((p) => [p.x, p.y] as [number, number]);
@@ -335,11 +433,12 @@ export class Game {
     const me = this.players.get(id);
     const flashMs = this.phase === "playing" ? Math.max(0, this.flashStartedAt + FLASH_MS - now) : 0;
     const seesAll = !me || me.status !== "alive" || this.phase !== "playing" || flashMs > 0;
+    const xray = (p: Player) => p.xrayUntil > now;
     const visible = [...this.players.values()].filter(
       (p) =>
         p.id !== id &&
         p.status === "alive" &&
-        (seesAll || canSee(this.maze, me, p)),
+        (seesAll || canSee(this.maze, me, p, xray(me))),
     );
     // how long a bump or stand-off with each player still shields the pair, so both can see it
     const cooldownMs = (p: Player) => (me ? Math.max(0, (me.cooldownUntil.get(p.id) ?? 0) - now) : 0);
@@ -357,11 +456,16 @@ export class Game {
         lit: me.lit,
         cooldownHeld: me.cooldownHeld.size > 0,
         cooldownMs: Math.max(0, ...[...me.cooldownUntil.values()].map((t) => t - now)),
+        items: KINDS.filter((k) => me.items.has(k)),
+        speedMs: Math.max(0, me.speedUntil - now),
+        xrayMs: Math.max(0, me.xrayUntil - now),
       },
       others: visible.map((p) => ({ id: p.id, x: p.x, y: p.y, facing: p.facing,
         cooldownMs: cooldownMs(p),
         cooldownHeld: !!me?.cooldownHeld.has(p.id),
+        xray: xray(p),
       })),
+      pickups: this.pickups,
     };
   }
 

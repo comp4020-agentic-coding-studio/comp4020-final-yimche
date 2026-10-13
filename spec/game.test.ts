@@ -5,6 +5,9 @@ import {
   CATCH_SECONDS,
   FLASH_EVERY_MS,
   FLASH_MS,
+  SPEED,
+  SPEED_MS,
+  XRAY_MS,
   canSee,
   inBeam,
   type Maze,
@@ -253,5 +256,85 @@ describe("catching only counts from behind", () => {
     game.join("c", "C", 10_000);
     expect(game.players.get("c")!.status).toBe("spectating");
     expect(game.roster()).toMatchObject({ alive: 2, total: 2 });
+  });
+});
+
+describe("powerups are kept until you use them", () => {
+  it("walking over a powerup picks it up, and it stays yours until you use it", () => {
+    const { game, a } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    game.pickups = [{ id: 1, kind: "speed", x: 2.5, y: 2.5 }];
+    game.tick(10_000, 0.05);
+    expect(game.pickups).toEqual([]);
+    expect(game.viewFor("a", 10_000).me?.items).toEqual(["speed"]);
+    game.tick(30_000, 0.05); // long after, still carried
+    expect(game.viewFor("a", 30_000).me?.items).toEqual(["speed"]);
+    expect(game.use("a", "speed", 30_000)).toBe(true);
+    expect(game.viewFor("a", 30_000).me?.items).toEqual([]);
+    expect(game.use("a", "speed", 30_000)).toBe(false); // used up
+  });
+
+  it("you carry one of each kind, so a second one is left for someone else", () => {
+    const { game, a } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    a.items.add("xray");
+    game.pickups = [{ id: 1, kind: "xray", x: 2.5, y: 2.5 }];
+    game.tick(10_000, 0.05);
+    expect(game.pickups).toHaveLength(1);
+  });
+
+  it("you can't use a powerup you haven't picked up", () => {
+    const { game } = playing();
+    expect(game.use("a", "teleport", 10_000)).toBe(false);
+  });
+
+  it("a round starts with powerups lying about the maze", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    game.start("a", 0);
+    game.tick(10_000, 0.05);
+    expect(game.viewFor("a", 10_000).pickups.length).toBeGreaterThan(0);
+  });
+
+  it("a speed boost makes you faster for a few seconds, then wears off", () => {
+    const { game, a } = playing();
+    a.items.add("speed");
+    game.use("a", "speed", 10_000);
+    Object.assign(a, { x: 1.5, y: 3.5, facing: 0 });
+    game.setInput("a", 1, 0, null);
+    game.tick(10_100, 0.5);
+    const boosted = a.x - 1.5;
+    expect(boosted).toBeGreaterThan(SPEED * 0.5 * 1.2);
+    a.x = 1.5;
+    game.tick(10_000 + SPEED_MS + 1, 0.5);
+    expect(a.x - 1.5).toBeCloseTo(SPEED * 0.5);
+  });
+
+  it("an x-ray torch shows someone through a wall, but can't catch them there", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 4.5, y: 1.5, facing: 0 });
+    Object.assign(b, { x: 7.5, y: 1.5, facing: 0 }); // behind the wall, back to a
+    expect(game.viewFor("a", 10_000).others).toEqual([]);
+    a.items.add("xray");
+    game.use("a", "xray", 10_000);
+    expect(game.viewFor("a", 10_000).others.map((o) => o.id)).toEqual(["b"]);
+    game.tick(10_050, CATCH_SECONDS + 0.1);
+    expect(b.status).toBe("alive");
+    expect(game.viewFor("a", 10_000 + XRAY_MS + 1).others).toEqual([]); // and it wears off
+  });
+
+  it("a teleport drops you somewhere else in the maze and breaks a beam on your back", () => {
+    const { game, a, b } = playing();
+    game.maze = { w: 31, h: 31, rows: Array.from({ length: 31 }, (_, y) =>
+      y === 0 || y === 30 ? "#".repeat(31) : "#" + ".".repeat(29) + "#") };
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: 0 }); // back to a's torch
+    game.tick(10_000, CATCH_SECONDS / 2);
+    expect(b.lit).toBe(true);
+    b.items.add("teleport");
+    expect(game.use("b", "teleport", 10_050)).toBe(true);
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThan(4);
+    expect(b.exposure.size + (a.exposure.get("b") ?? 0)).toBe(0);
   });
 });
