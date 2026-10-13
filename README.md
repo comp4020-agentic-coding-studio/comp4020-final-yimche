@@ -26,10 +26,13 @@ still in the dark wins the round.
    time, and you both get a short stun: neither of you can catch the other
    until the light comes off and the countdown runs out. Turning tail out of a
    stand-off doesn't hand the other one a free catch.
-7. Powerups lie about the maze and glow through the dark. Walk over one to
-   pick it up; it's yours until you use it, with <kbd>1</kbd>, <kbd>2</kbd>
-   and <kbd>3</kbd> or by tapping it. You carry one of each kind at most, and
-   a fresh one turns up every few seconds.
+7. Powerups lie about the maze and glow through the dark, spread out so no
+   corner has them all. Walk over one to pick it up; it's yours until you use
+   it, with <kbd>Space</kbd> or by tapping the slot at the bottom. You carry
+   one at a time: walking over another swaps it in and the old one is gone.
+   Whatever you pick up while a speed boost or x-ray torch is running waits
+   until that one wears off. Each powerup taken turns up again somewhere else
+   in the maze, so there's no spot worth camping on.
    - **Speed**: a few seconds of running faster.
    - **X-ray**: for a few seconds your torch sees through walls. It shows you
      where people are, but it only catches someone in the open, never through

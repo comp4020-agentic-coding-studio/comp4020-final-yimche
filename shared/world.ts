@@ -13,14 +13,14 @@ export const FLASH_EVERY_MS = 10000; // how often the whole maze flashes into vi
 export const FLASH_MS = 1000; // how long a flash takes to fade back to dark
 
 // Powerups lie about the maze; walk over one to pick it up, and it's yours
-// until you choose to use it. You carry at most one of each kind.
+// until you choose to use it. You carry one at a time: walking over another
+// swaps it in, and the old one is gone.
 export type Kind = "speed" | "xray" | "teleport";
 export const KINDS: Kind[] = ["speed", "xray", "teleport"];
 export const PICKUP_RADIUS = 0.55; // how close you have to walk to pick one up
 export const SPEED_BOOST = 1.6; // speed multiplier while a boost lasts
 export const SPEED_MS = 4000;
 export const XRAY_MS = 5000; // a torch that sees through walls, but catches only in the open
-export const PICKUP_EVERY_MS = 8000; // how often a fresh powerup turns up mid-round
 
 export interface Maze {
   w: number;

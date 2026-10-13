@@ -6,7 +6,6 @@ import { marked } from "marked";
 import { WebSocketServer, type WebSocket } from "ws";
 import { store } from "./db.ts";
 import { Game } from "./game.ts";
-import { KINDS } from "../shared/world.ts";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const TICK_MS = 50;
@@ -188,7 +187,7 @@ server.on("upgrade", (req, socket, head) => {
           game.setInput(player.id, num(msg.dx), num(msg.dy), aim);
         }
         if (msg.t === "start") game.start(player.id, Date.now());
-        if (msg.t === "use" && KINDS.includes(msg.kind)) game.use(player.id, msg.kind, Date.now());
+        if (msg.t === "use") game.use(player.id, Date.now());
       } catch {
         // ignore anything that isn't our protocol
       }

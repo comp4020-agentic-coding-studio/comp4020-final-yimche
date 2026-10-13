@@ -6,7 +6,6 @@ import {
   FLASH_EVERY_MS,
   FLASH_MS,
   KINDS,
-  PICKUP_EVERY_MS,
   PICKUP_RADIUS,
   SPEED,
   SPEED_BOOST,
@@ -49,8 +48,8 @@ export interface Player extends Body {
   // stays full until the light comes off, and only then starts counting down
   cooldownHeld: Set<string>;
   lit: boolean;
-  // powerups picked up and not yet used, and when the timed ones wear off
-  items: Set<Kind>;
+  // the one powerup carried and not yet used, and when the timed ones wear off
+  item: Kind | null;
   speedUntil: number;
   xrayUntil: number;
 }
@@ -88,9 +87,8 @@ export class Game {
   // can get your bearings, and for that moment everyone still in shows up too.
   flashStartedAt = -Infinity;
   nextFlashAt = Infinity;
-  // powerups lying in the maze this round, and when the next one turns up
+  // powerups lying in the maze this round
   pickups: Pickup[] = [];
-  nextPickupAt = Infinity;
   private pickupIds = 0;
   private hooks: Hooks;
   private seed = Date.now();
@@ -121,7 +119,7 @@ export class Game {
         cooldownUntil: new Map(),
         cooldownHeld: new Set(),
         lit: false,
-        items: new Set(),
+        item: null,
         speedUntil: 0,
         xrayUntil: 0,
       };
@@ -168,7 +166,7 @@ export class Game {
     }
     // in the lobby you can wander about while you wait, but nobody gets caught
     if (this.phase === "playing" || this.phase === "waiting") this.walk(now, dt);
-    if (this.phase === "playing") this.pickUp(now);
+    if (this.phase === "playing") this.pickUp();
     const events = this.phase === "playing" ? this.catches(now, dt) : [];
     this.advance(now);
     return events;
@@ -185,40 +183,68 @@ export class Game {
     }
   }
 
-  // Walking over a powerup picks it up, unless you're already carrying one of
-  // that kind; then it stays where it is for someone else. A fresh one turns
-  // up every so often, so a long round doesn't run dry.
-  private pickUp(now: number): void {
+  // Walking over a powerup picks it up, swapping out whatever you carried.
+  // Each one taken turns up again somewhere else straight away, in a different
+  // part of the maze, so there's always the same number about and no spot
+  // worth camping on.
+  private pickUp(): void {
     for (const p of this.alive()) {
-      this.pickups = this.pickups.filter((it) => {
-        if (p.items.has(it.kind) || Math.hypot(it.x - p.x, it.y - p.y) > PICKUP_RADIUS) return true;
-        p.items.add(it.kind);
-        return false;
-      });
-    }
-    if (now >= this.nextPickupAt) {
-      if (this.pickups.length < this.pickupCap()) this.scatter(1);
-      this.nextPickupAt = now + PICKUP_EVERY_MS;
+      for (const it of [...this.pickups]) {
+        if (Math.hypot(it.x - p.x, it.y - p.y) > PICKUP_RADIUS) continue;
+        p.item = it.kind;
+        this.pickups = this.pickups.filter((o) => o !== it);
+        this.place(this.sectorOf(it.x, it.y));
+      }
     }
   }
 
-  private pickupCap(): number {
+  private pickupCount(): number {
     return this.alive().length + 2;
   }
 
-  // Drops powerups on free rooms, never right next to a player, so nobody
-  // starts a round on top of one.
-  private scatter(count: number): void {
-    const rooms = this.rooms().filter(
+  // The maze is cut into a grid of sectors, about two for every powerup, and
+  // no sector ever holds more than one. Each new powerup goes to the free
+  // sector farthest from the others, so they stay spread across the map.
+  private sectors(): number {
+    return Math.ceil(Math.sqrt(this.pickupCount() * 2));
+  }
+
+  private sectorOf(x: number, y: number): number {
+    const g = this.sectors();
+    const col = Math.min(g - 1, Math.floor((x / this.maze.w) * g));
+    const row = Math.min(g - 1, Math.floor((y / this.maze.h) * g));
+    return row * g + col;
+  }
+
+  // Puts one powerup in a random room of a free sector, never the sector one
+  // was just taken from, and not right beside a player.
+  private place(not = -1): void {
+    const g = this.sectors();
+    const taken = new Set(this.pickups.map((it) => this.sectorOf(it.x, it.y)));
+    const centre = (s: number) => [((s % g) + 0.5) * (this.maze.w / g), (Math.floor(s / g) + 0.5) * (this.maze.h / g)];
+    const free = [...Array(g * g).keys()].filter((s) => !taken.has(s) && s !== not);
+    if (free.length === 0) return;
+    // farthest from the powerups already out; ties, and the first one, at random
+    const spread = (s: number) => {
+      const [cx, cy] = centre(s);
+      return Math.min(Infinity, ...this.pickups.map((it) => Math.hypot(it.x - cx, it.y - cy)));
+    };
+    const best = Math.max(...free.map(spread));
+    const choices = free.filter((s) => spread(s) >= best - 0.01);
+    const sector = choices[Math.floor(Math.random() * choices.length)];
+    const rooms = this.rooms().filter(([x, y]) => this.sectorOf(x, y) === sector);
+    // not right up against a neighbouring sector's powerup either
+    const apart = (this.maze.w / g) / 2;
+    const clear = rooms.filter(
       ([x, y]) =>
-        !this.pickups.some((it) => it.x === x && it.y === y) &&
-        this.alive().every((p) => Math.hypot(p.x - x, p.y - y) > 3),
+        this.alive().every((p) => Math.hypot(p.x - x, p.y - y) > 3) &&
+        this.pickups.every((it) => Math.hypot(it.x - x, it.y - y) >= apart),
     );
-    for (let i = 0; i < count && rooms.length > 0; i++) {
-      const [x, y] = rooms.splice(Math.floor(Math.random() * rooms.length), 1)[0];
-      const kind = KINDS[Math.floor(Math.random() * KINDS.length)];
-      this.pickups.push({ id: ++this.pickupIds, kind, x, y });
-    }
+    const pool = clear.length > 0 ? clear : rooms;
+    if (pool.length === 0) return;
+    const [x, y] = pool[Math.floor(Math.random() * pool.length)];
+    const kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+    this.pickups.push({ id: ++this.pickupIds, kind, x, y });
   }
 
   private rooms(): [number, number][] {
@@ -229,13 +255,16 @@ export class Game {
     return rooms;
   }
 
-  // Uses a powerup you're carrying, mid-round only. A speed boost and an x-ray
-  // torch last a few seconds; a teleport drops you in a random room well away
-  // from everyone else. Returns whether it was used.
-  use(id: string, kind: Kind, now: number): boolean {
+  // Uses the powerup you're carrying, mid-round only, and empties the slot. A
+  // speed boost and an x-ray torch last a few seconds, and the next powerup
+  // can't be used until the running one wears off; a teleport drops you in a
+  // random room well away from everyone else. Returns whether it was used.
+  use(id: string, now: number): boolean {
     const p = this.players.get(id);
-    if (!p || p.status !== "alive" || this.phase !== "playing" || !p.items.has(kind)) return false;
-    p.items.delete(kind);
+    if (!p || p.status !== "alive" || this.phase !== "playing" || !p.item) return false;
+    if (p.speedUntil > now || p.xrayUntil > now) return false;
+    const kind = p.item;
+    p.item = null;
     if (kind === "speed") p.speedUntil = now + SPEED_MS;
     if (kind === "xray") p.xrayUntil = now + XRAY_MS;
     if (kind === "teleport") {
@@ -343,8 +372,7 @@ export class Game {
           this.setPhase("playing", 0);
           this.flashStartedAt = -Infinity;
           this.nextFlashAt = now + FLASH_EVERY_MS;
-          this.scatter(this.pickupCap());
-          this.nextPickupAt = now + PICKUP_EVERY_MS;
+          for (let i = 0; i < this.pickupCount(); i++) this.place();
         }
         break;
       case "playing": {
@@ -356,7 +384,6 @@ export class Game {
         const alive = this.alive();
         if (alive.length <= 1) {
           this.pickups = [];
-          this.nextPickupAt = Infinity;
           this.winner = alive[0]?.id ?? null;
           this.hooks.roundEnded(this.roundId, this.winner);
           this.setPhase("ended", now + ENDED_MS);
@@ -386,7 +413,7 @@ export class Game {
       p.cooldownUntil.clear();
       p.cooldownHeld.clear();
       p.lit = false;
-      p.items.clear();
+      p.item = null;
       p.speedUntil = 0;
       p.xrayUntil = 0;
     }
@@ -456,7 +483,7 @@ export class Game {
         lit: me.lit,
         cooldownHeld: me.cooldownHeld.size > 0,
         cooldownMs: Math.max(0, ...[...me.cooldownUntil.values()].map((t) => t - now)),
-        items: KINDS.filter((k) => me.items.has(k)),
+        item: me.item,
         speedMs: Math.max(0, me.speedUntil - now),
         xrayMs: Math.max(0, me.xrayUntil - now),
       },
