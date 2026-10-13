@@ -50,4 +50,30 @@ app, and they are part of what gets marked.
   players in a room only meet if they reach the same process).
 - `README.md` is the crit material and changes as the game does; update it in
   the same commit as a change to the rules.
-- Prose in this repo follows the house voice: no em-dashes.
+- **Watch the finished thing run, don't just read it.** Tests prove the rules;
+  only playing a round (or screenshotting one) shows whether it reads and
+  feels right. Check a visible change in the running app before calling it done.
+
+## House style (no AI tells)
+
+- **No em-dashes, en-dashes, or `--`. Anywhere.** Prose, code comments, commit
+  messages, docs, player-facing text, this file. Use a comma, a semicolon, or a
+  restructured sentence. (CSS custom properties are code, not prose.)
+- **Drop the other AI tells too.** No "not just X, but Y" scaffolding, no
+  reflexive "it's worth noting", no hollow superlatives, no throat-clearing
+  preambles. Write plainly and let the work carry itself.
+
+## Working agreement
+
+Carried over from crit 5 and assignment 2; it was dropped when this harness
+was adapted from crit 7's.
+
+- **Commit when a series of instructions is done.** After completing a request
+  (or a batch of them), commit the work before handing back, never leaving
+  finished work sitting uncommitted. Prefer small, logical commits with messages
+  that say what changed and why; reconstruct the honest build order when several
+  landed together. Never commit a red `pnpm check`. This is standing
+  authorization to commit.
+- **Push is still yours.** Committing is automatic; pushing is a deliberate act
+  left to Julian. This repo is already public, and a push to `main` deploys to
+  Fly, so a push is a release.
