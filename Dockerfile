@@ -19,5 +19,6 @@ COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/public public
 COPY server server
 COPY shared shared
+COPY docs docs
 COPY package.json README.md ./
 CMD ["node", "--disable-warning=ExperimentalWarning", "server/index.ts"]

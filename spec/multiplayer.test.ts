@@ -91,3 +91,15 @@ it("the first one into a new room is its host, and the room is listed", async ()
   expect(rooms).toContainEqual(expect.objectContaining({ code: room, host: "hostie" }));
   one.ws.close();
 });
+
+it("every decision record the README links to is published as a page", async () => {
+  const readme = (await import("node:fs")).readFileSync("README.md", "utf8");
+  const links = [...readme.matchAll(/\]\((docs\/decisions\/[^)]+\.md)\)/g)].map((m) => m[1]);
+  expect(links.length).toBeGreaterThan(0);
+  for (const link of links) {
+    const res = await fetch(new URL(`/readme/${link}`, baseUrl));
+    expect(res.status, link).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(await res.text()).toContain("<h2>Decision</h2>");
+  }
+});

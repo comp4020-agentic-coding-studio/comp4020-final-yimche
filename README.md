@@ -90,4 +90,6 @@ A plain Node server (TypeScript, run directly) holds the open rooms in memory
 and ticks each one twenty times a second, pushing each player their own view over a
 WebSocket. Players, rounds and catches live in SQLite (`node:sqlite`) on a Fly
 volume. The browser client is a single canvas bundled with esbuild. The reasons
-for each choice are in [PROCESS.md](PROCESS.md).
+for each choice are in [PROCESS.md](PROCESS.md), and the decision about what
+each player sees of the others, live, is in
+[docs/decisions/001-fog-of-war-and-the-flash.md](docs/decisions/001-fog-of-war-and-the-flash.md).

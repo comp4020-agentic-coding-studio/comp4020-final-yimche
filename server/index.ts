@@ -41,11 +41,13 @@ const TYPES: Record<string, string> = {
   ".png": "image/png",
 };
 
-function readmePage(): string {
-  const body = marked.parse(readFileSync(join(import.meta.dirname, "..", "README.md"), "utf8"));
+// The README, and the decision records it links to, rendered as plain pages.
+const ROOT = join(import.meta.dirname, "..");
+function readmePage(file = join(ROOT, "README.md"), title = "About"): string {
+  const body = marked.parse(readFileSync(file, "utf8"));
   return `<!doctype html><html lang="en-AU"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>About · Torchlight</title>
+<title>${title} · Torchlight</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/style.css"></head>
 <body class="readme"><main><p><a href="/">← Back to the maze</a></p>${body}</main></body></html>`;
@@ -104,7 +106,17 @@ const server = createServer(async (req, res) => {
     return res.end(readmePage());
   }
   if (url.pathname.startsWith("/readme/docs/")) {
-    if (serveStatic(res, join(import.meta.dirname, "..", "docs"), url.pathname.slice("/readme/docs/".length))) return;
+    const docs = join(ROOT, "docs");
+    const file = normalize(join(docs, url.pathname.slice("/readme/docs/".length)));
+    if (file.startsWith(docs + "/") && extname(file) === ".md") {
+      try {
+        const page = readmePage(file, "Decision");
+        res.writeHead(200, { "content-type": TYPES[".html"] });
+        return res.end(page);
+      } catch {
+        // falls through to the 404
+      }
+    } else if (serveStatic(res, docs, url.pathname.slice("/readme/docs/".length))) return;
   }
   if (url.pathname === "/api/me" && req.method === "GET") {
     if (!player) return json(res, 404, { error: "no name yet" });
