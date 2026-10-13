@@ -4,7 +4,10 @@ import {
   BEAM_RANGE,
   FLASH_MS,
   PLAYER_RADIUS,
+  SPEED_MS,
+  XRAY_MS,
   castRay,
+  type Kind,
   type Maze,
 } from "../shared/world.ts";
 
@@ -17,14 +20,27 @@ interface Seen {
   facing: number;
   cooldownMs: number;
   cooldownHeld: boolean;
+  xray: boolean;
 }
 interface State {
   phase: Phase;
   remainingMs: number;
   flashMs: number;
   nextFlashMs: number;
-  me?: { x: number; y: number; facing: number; status: Status; lit: boolean; cooldownMs: number; cooldownHeld: boolean };
+  me?: {
+    x: number;
+    y: number;
+    facing: number;
+    status: Status;
+    lit: boolean;
+    cooldownMs: number;
+    cooldownHeld: boolean;
+    items: Kind[];
+    speedMs: number;
+    xrayMs: number;
+  };
   others: Seen[];
+  pickups: { id: number; kind: Kind; x: number; y: number }[];
 }
 interface RosterEntry {
   id: string;
@@ -47,6 +63,17 @@ let maze: Maze = { w: 1, h: 1, rows: ["#"] };
 let state: State | null = null;
 let roster: RosterEntry[] = [];
 let winner: string | null = null;
+// The night the maze is drawn in, and a colour for each player so you can
+// tell who's who in the dark. A player's colour comes from their id, so it's
+// the same on every screen and from round to round.
+const NIGHT = { floor: "#46536f", wall: "#121722", edge: "#5a6888", light: "255 236 196" };
+const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
+const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4" };
+function colourOf(id: string): string {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return PLAYER_COLOURS[h % PLAYER_COLOURS.length];
+}
 // where we draw ourselves, eased toward the server's position each frame
 const drawn = { x: 0, y: 0 };
 let lastFrame = performance.now();
@@ -198,6 +225,19 @@ const KEYMAP: Record<string, [number, number]> = {
 
 const keyDirection = (e: KeyboardEvent) => KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key] ?? KEYMAP[e.code];
 
+// 1, 2 and 3 use the powerup in that slot, if you're carrying it
+const USE_KEYS: Record<string, Kind> = { Digit1: "speed", Digit2: "xray", Digit3: "teleport" };
+function use(kind: Kind): void {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "use", kind }));
+  canvas.focus();
+}
+addEventListener("keydown", (e) => {
+  if (USE_KEYS[e.code] && !(document.activeElement instanceof HTMLInputElement)) return use(USE_KEYS[e.code]);
+}, { capture: true });
+for (const b of document.querySelectorAll<HTMLButtonElement>(".item")) {
+  b.addEventListener("click", () => use(b.dataset.kind as Kind));
+}
+
 addEventListener("keydown", (e) => {
   const dir = keyDirection(e);
   if (!dir || e.ctrlKey || e.metaKey || e.altKey || document.activeElement instanceof HTMLInputElement) return;
@@ -278,14 +318,15 @@ function toScreen(x: number, y: number): [number, number] {
   return [(offX + x * scale) / dpr, (offY + y * scale) / dpr];
 }
 
-// The lit part of a beam, cut short wherever a wall stops it.
-function beam(c: CanvasRenderingContext2D, x: number, y: number, facing: number): void {
+// The lit part of a beam, cut short wherever a wall stops it, unless it's an
+// x-ray torch, which goes straight through.
+function beam(c: CanvasRenderingContext2D, x: number, y: number, facing: number, xray = false): void {
   const steps = 48;
   c.beginPath();
   c.moveTo(offX + x * scale, offY + y * scale);
   for (let i = 0; i <= steps; i++) {
     const a = facing - BEAM_HALF_ANGLE + (2 * BEAM_HALF_ANGLE * i) / steps;
-    const d = castRay(maze, x, y, a, BEAM_RANGE);
+    const d = xray ? BEAM_RANGE : castRay(maze, x, y, a, BEAM_RANGE);
     c.lineTo(offX + (x + Math.cos(a) * d) * scale, offY + (y + Math.sin(a) * d) * scale);
   }
   c.closePath();
@@ -295,8 +336,7 @@ function frame(now: number): void {
   const dt = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
   requestAnimationFrame(frame);
-  ctx.fillStyle = "#07080c";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!state) return;
   const me = state.me;
   if (me) {
@@ -306,27 +346,36 @@ function frame(now: number): void {
     if (Math.hypot(me.x - drawn.x, me.y - drawn.y) > 2) Object.assign(drawn, { x: me.x, y: me.y });
   }
 
-  // floor and walls
-  ctx.fillStyle = "#4a5266";
+  // floor and walls, with a lit lip along the top of each wall so they read as raised
+  ctx.fillStyle = NIGHT.floor;
   ctx.fillRect(offX, offY, maze.w * scale, maze.h * scale);
-  ctx.fillStyle = "#12151d";
+  const wall = (x: number, y: number) => maze.rows[y]?.[x] === "#";
   for (let y = 0; y < maze.h; y++) {
     for (let x = 0; x < maze.w; x++) {
-      if (maze.rows[y][x] === "#") ctx.fillRect(offX + x * scale, offY + y * scale, scale + 0.5, scale + 0.5);
+      if (!wall(x, y)) continue;
+      const px = offX + x * scale;
+      const py = offY + y * scale;
+      ctx.fillStyle = NIGHT.wall;
+      ctx.fillRect(px, py, scale + 0.5, scale + 0.5);
+      if (y + 1 < maze.h && !wall(x, y + 1)) {
+        ctx.fillStyle = NIGHT.edge;
+        ctx.fillRect(px, py + scale * 0.82, scale + 0.5, scale * 0.18 + 0.5);
+      }
     }
   }
 
   const playing = me?.status === "alive";
+  const myXray = !!me && me.xrayMs > 0;
 
   // other torches you can see
-  ctx.fillStyle = "rgb(255 215 122 / 0.18)";
   for (const o of state.others) {
-    beam(ctx, o.x, o.y, o.facing);
+    ctx.fillStyle = o.xray ? "rgb(170 150 255 / 0.16)" : `rgb(${NIGHT.light} / 0.14)`;
+    beam(ctx, o.x, o.y, o.facing, o.xray);
     ctx.fill();
   }
   if (playing && me) {
-    ctx.fillStyle = "rgb(255 215 122 / 0.28)";
-    beam(ctx, drawn.x, drawn.y, me.facing);
+    ctx.fillStyle = myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${NIGHT.light} / 0.3)`;
+    beam(ctx, drawn.x, drawn.y, me.facing, myXray);
     ctx.fill();
   }
 
@@ -337,54 +386,113 @@ function frame(now: number): void {
   if (playing && state.phase !== "ended") {
     fctx.globalCompositeOperation = "source-over";
     fctx.clearRect(0, 0, fog.width, fog.height);
-    const dark = state.phase === "playing" ? 0.8 * (1 - flash) : 0.5;
-    fctx.fillStyle = `rgb(0 0 0 / ${dark})`;
+    const dark = state.phase === "playing" ? 0.82 * (1 - flash) : 0.45;
+    fctx.fillStyle = `rgb(6 8 14 / ${dark})`;
     fctx.fillRect(0, 0, fog.width, fog.height);
     fctx.globalCompositeOperation = "destination-out";
     fctx.fillStyle = "#000";
-    beam(fctx, drawn.x, drawn.y, me.facing);
+    beam(fctx, drawn.x, drawn.y, me.facing, myXray);
     fctx.fill();
     fctx.beginPath();
     fctx.arc(offX + drawn.x * scale, offY + drawn.y * scale, AURA_RADIUS * scale, 0, Math.PI * 2);
     fctx.fill();
     ctx.drawImage(fog, 0, 0);
   }
+  // powerups glow through the dark: they're no secret, and worth heading for
+  for (const it of state.pickups) pickup(it.x, it.y, it.kind, now);
+
   if (flash > 0) {
-    ctx.fillStyle = `rgb(220 230 255 / ${0.35 * flash ** 3})`;
+    ctx.fillStyle = `rgb(225 235 255 / ${0.3 * flash ** 3})`;
     ctx.fillRect(offX, offY, maze.w * scale, maze.h * scale);
   }
 
   // people
   const nameOf = (id: string) => roster.find((r) => r.id === id)?.name ?? "";
-  ctx.font = `${Math.max(11, scale * 0.45)}px system-ui`;
+  ctx.font = `600 ${Math.max(11, scale * 0.42)}px Inter, system-ui`;
   ctx.textAlign = "center";
   for (const o of state.others) {
-    dot(o.x, o.y, "#e8e6df", nameOf(o.id));
+    dot(o.x, o.y, o.facing, colourOf(o.id), nameOf(o.id));
     if (state.phase === "playing") shield(o.x, o.y, o.cooldownMs, o.cooldownHeld, now);
   }
   if (playing && me) {
-    dot(drawn.x, drawn.y, me.lit ? "#ff6b5b" : "#ffd77a", "you");
+    if (me.speedMs > 0) trail(drawn.x, drawn.y, me.facing);
+    dot(drawn.x, drawn.y, me.facing, colourOf(myId), "you", me.lit);
     if (state.phase === "playing") shield(drawn.x, drawn.y, me.cooldownMs, me.cooldownHeld, now);
   }
 
   // when the next flash comes, in the corner where it doesn't cover the maze
   if (state.phase === "playing" && state.nextFlashMs > 0) {
     const dpr = devicePixelRatio || 1;
-    ctx.font = `${14 * dpr}px system-ui`;
+    ctx.font = `500 ${13 * dpr}px Inter, system-ui`;
     ctx.textAlign = "right";
-    ctx.fillStyle = flash > 0 ? "#e8e6df" : "rgb(232 230 223 / 0.7)";
+    ctx.fillStyle = flash > 0 ? "#e6e8ee" : "rgb(230 232 238 / 0.65)";
     ctx.fillText(`Flash in ${Math.ceil(state.nextFlashMs / 1000)}`, canvas.width - 12 * dpr, 22 * dpr);
   }
 
   // a red edge when someone's torch is on you
   if (me?.lit && state.phase === "playing") {
-    ctx.strokeStyle = "rgb(255 107 91 / 0.8)";
+    ctx.strokeStyle = "rgb(240 110 90 / 0.85)";
     ctx.lineWidth = 8 * (devicePixelRatio || 1);
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
   }
 
   banner(bannerText(state));
   startButton(state);
+  inventory(state);
+}
+
+// The bar of powerups you're carrying. Every slot is always shown, so you
+// learn where each one lives; it lights up once you've picked one up, and
+// drains while a timed one runs.
+function inventory(s: State): void {
+  const bar = $("items");
+  const show = s.phase === "playing" && s.me?.status === "alive";
+  if (bar.hidden === show) bar.hidden = !show;
+  if (!show || !s.me) return;
+  for (const b of bar.querySelectorAll<HTMLButtonElement>(".item")) {
+    const kind = b.dataset.kind as Kind;
+    const held = s.me.items.includes(kind);
+    if (b.disabled === held) b.disabled = !held;
+    b.classList.toggle("held", held);
+    const left = kind === "speed" ? s.me.speedMs / SPEED_MS : kind === "xray" ? s.me.xrayMs / XRAY_MS : 0;
+    b.style.setProperty("--left", String(left));
+  }
+}
+
+function pickup(x: number, y: number, kind: Kind, now: number): void {
+  const sx = offX + x * scale;
+  const sy = offY + y * scale;
+  const r = scale * 0.34 * (1 + 0.08 * Math.sin(now / 250 + x));
+  const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 2.4);
+  glow.addColorStop(0, KIND_COLOURS[kind] + "88");
+  glow.addColorStop(1, KIND_COLOURS[kind] + "00");
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx - r * 2.4, sy - r * 2.4, r * 4.8, r * 4.8);
+  ctx.fillStyle = KIND_COLOURS[kind];
+  ctx.beginPath();
+  // a diamond: different from the round players at a glance
+  ctx.moveTo(sx, sy - r);
+  ctx.lineTo(sx + r, sy);
+  ctx.lineTo(sx, sy + r);
+  ctx.lineTo(sx - r, sy);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// a few fading ghosts behind you while a speed boost runs
+function trail(x: number, y: number, facing: number): void {
+  for (let i = 1; i <= 3; i++) {
+    ctx.fillStyle = `rgb(63 191 133 / ${0.3 - i * 0.08})`;
+    ctx.beginPath();
+    ctx.arc(
+      offX + (x - Math.cos(facing) * i * 0.22) * scale,
+      offY + (y - Math.sin(facing) * i * 0.22) * scale,
+      PLAYER_RADIUS * scale * (1 - i * 0.12),
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
 }
 
 // Only the host gets the button, and it only works with someone to play against.
@@ -410,15 +518,27 @@ $("copy").addEventListener("click", async () => {
   }
 });
 
-function dot(x: number, y: number, colour: string, label: string): void {
+// A player: their colour, a dark rim, a notch showing which way they face (so
+// you can tell whose back is turned), and their name above. Red when lit.
+function dot(x: number, y: number, facing: number, colour: string, label: string, lit = false): void {
   const sx = offX + x * scale;
   const sy = offY + y * scale;
-  ctx.fillStyle = colour;
+  const r = PLAYER_RADIUS * scale;
+  ctx.fillStyle = lit ? "#f06e5a" : colour;
+  ctx.strokeStyle = "rgb(10 12 20 / 0.7)";
+  ctx.lineWidth = Math.max(1.5, scale * 0.06);
   ctx.beginPath();
-  ctx.arc(sx, sy, PLAYER_RADIUS * scale, 0, Math.PI * 2);
+  ctx.arc(sx, sy, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#e8e6df";
-  ctx.fillText(label, sx, sy - PLAYER_RADIUS * scale - 4);
+  ctx.stroke();
+  ctx.fillStyle = "rgb(10 12 20 / 0.75)";
+  ctx.beginPath();
+  ctx.arc(sx + Math.cos(facing) * r * 0.5, sy + Math.sin(facing) * r * 0.5, r * 0.28, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgb(10 12 20 / 0.6)";
+  ctx.fillText(label, sx + 1, sy - r - 5 + 1);
+  ctx.fillStyle = "#eef0f5";
+  ctx.fillText(label, sx, sy - r - 5);
 }
 
 // A ring while a head-on bump or stand-off shields a pair from catching each other: steady
@@ -428,7 +548,7 @@ function shield(x: number, y: number, cooldownMs: number, held: boolean, now: nu
   if (cooldownMs <= 0) return;
   const rate = cooldownMs < 1000 ? 10 : 4; // blinks per second
   const on = held ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * rate * Math.PI * 2);
-  ctx.strokeStyle = `rgb(120 200 255 / ${0.25 + 0.75 * on})`;
+  ctx.strokeStyle = `rgb(140 205 255 / ${0.25 + 0.75 * on})`;
   ctx.lineWidth = Math.max(2, scale * 0.08);
   ctx.beginPath();
   ctx.arc(offX + x * scale, offY + y * scale, PLAYER_RADIUS * scale * 1.7, 0, Math.PI * 2);
@@ -455,6 +575,8 @@ function bannerText(s: State): string {
       if (s.me?.lit) return "You're in someone's light. Move!";
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
+      if (s.me?.xrayMs) return "X-ray torch: you see through walls, but can only catch in the open";
+      if (s.me?.speedMs) return "Speed boost!";
       return "";
   }
 }
@@ -484,13 +606,16 @@ function renderRoster(): void {
       .sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name))
       .map((p) => {
         const li = document.createElement("li");
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.background = colourOf(p.id);
         const name = document.createElement("span");
         name.textContent = p.name;
         name.className = p.status;
         const note = document.createElement("small");
         const role = p.id === hostId ? "host" : "";
         note.textContent = p.away ? "away" : p.status === "spectating" ? "next round" : p.status === "caught" ? "caught" : role;
-        li.append(name, note);
+        li.append(swatch, name, note);
         return li;
       }),
   );
@@ -507,7 +632,9 @@ async function refreshRecord(): Promise<void> {
   if (me.ok) {
     const r = await me.json();
     $("record").textContent =
-      `${r.name}: ${r.catches} catches, ${r.wins} wins, caught ${r.caught} times in ${r.rounds} rounds.`;
+      r.rounds === 0
+        ? `${r.name}, no rounds played yet`
+        : `${r.name}: ${r.catches} catches, ${r.wins} wins, caught ${r.caught} times in ${r.rounds} rounds`;
   }
   if (board.ok) {
     const { leaders } = (await board.json()) as { leaders: { name: string; catches: number; wins: number }[] };

@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Torchlight</title>
     <meta name="description" content="Hide and seek in a dark maze where everyone is the seeker." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" />
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.js"></script>
   </head>
@@ -20,18 +23,32 @@
         <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys."></canvas>
         <div id="banner" class="banner" role="status" aria-live="polite"></div>
         <button id="start" class="start" type="button" hidden>Start the round</button>
+        <div id="items" class="items" hidden>
+          <button type="button" class="item" data-kind="speed" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>
+            Speed <kbd>1</kbd>
+          </button>
+          <button type="button" class="item" data-kind="xray" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            X-ray <kbd>2</kbd>
+          </button>
+          <button type="button" class="item" data-kind="teleport" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+            Teleport <kbd>3</kbd>
+          </button>
+        </div>
       </section>
 
       <aside>
         <section aria-labelledby="room-h">
           <h2 id="room-h">Room</h2>
-          <p class="room"><span id="room-code" class="code">—</span>
+          <p class="room"><span id="room-code" class="code">····</span>
             <button id="copy" type="button" class="quiet">Copy link</button>
             <a href="/">Other rooms</a></p>
         </section>
         <section aria-labelledby="tracker-h">
           <h2 id="tracker-h">Still in the dark</h2>
-          <p id="count" class="count">—</p>
+          <p id="count" class="count">No opponents yet</p>
           <ul id="roster" class="roster"></ul>
         </section>
         <section aria-labelledby="feed-h">
@@ -40,15 +57,16 @@
         </section>
         <section aria-labelledby="me-h">
           <h2 id="me-h">Your record</h2>
-          <p id="record">—</p>
+          <p id="record">No rounds played yet</p>
         </section>
         <section aria-labelledby="board-h">
           <h2 id="board-h">Best seekers</h2>
           <ol id="board" class="board"></ol>
         </section>
         <p class="help">
-          Move: <kbd>WASD</kbd> / arrows, or drag on the maze. Aim: your torch points where you walk,
-          or at the mouse.
+          Move with <kbd>WASD</kbd> or the arrows, or drag on the maze. Your torch points where you
+          walk, or at the mouse. Walk over a powerup to keep it; use it with <kbd>1</kbd> <kbd>2</kbd>
+          <kbd>3</kbd> or by tapping it.
         </p>
       </aside>
     </main>
