@@ -23,20 +23,15 @@
         <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys."></canvas>
         <div id="banner" class="banner" role="status" aria-live="polite"></div>
         <button id="start" class="start" type="button" hidden>Start the round</button>
-        <div id="items" class="items" hidden>
-          <button type="button" class="item" data-kind="speed" disabled>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>
-            Speed <kbd>1</kbd>
-          </button>
-          <button type="button" class="item" data-kind="xray" disabled>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
-            X-ray <kbd>2</kbd>
-          </button>
-          <button type="button" class="item" data-kind="teleport" disabled>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
-            Teleport <kbd>3</kbd>
-          </button>
-        </div>
+        <button id="slot" class="slot" type="button" data-kind="" hidden>
+          <span class="icon" aria-hidden="true">
+            <svg data-kind="speed" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>
+            <svg data-kind="xray" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg data-kind="teleport" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+          </span>
+          <span id="slot-label">Empty</span>
+          <kbd>Space</kbd>
+        </button>
       </section>
 
       <aside>
@@ -65,8 +60,8 @@
         </section>
         <p class="help">
           Move with <kbd>WASD</kbd> or the arrows, or drag on the maze. Your torch points where you
-          walk, or at the mouse. Walk over a powerup to keep it; use it with <kbd>1</kbd> <kbd>2</kbd>
-          <kbd>3</kbd> or by tapping it.
+          walk, or at the mouse. Walk over a powerup to carry it, one at a time; use it with
+          <kbd>Space</kbd> or by tapping it.
         </p>
       </aside>
     </main>

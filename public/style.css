@@ -135,65 +135,91 @@ canvas:focus-visible {
   display: none;
 }
 
-/* the powerups you're carrying, along the bottom of the maze */
-.items {
+/* the one powerup you're carrying, at the bottom of the maze */
+.slot {
+  --c: rgb(230 232 238 / 0.4);
   position: absolute;
   bottom: 0.9rem;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 0.5rem;
-}
-
-.item {
-  --c: var(--muted);
-  position: relative;
-  display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.4rem 0.7rem 0.4rem 0.5rem;
-  background: rgb(22 27 40 / 0.85);
+  gap: 0.5rem;
+  min-width: 9.5rem;
+  padding: 0.45rem 0.75rem 0.45rem 0.5rem;
+  background: rgb(22 27 40 / 0.88);
   color: #e6e8ee;
-  border: 1px solid rgb(255 255 255 / 0.1);
-  border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 10px;
   font-weight: 500;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   overflow: hidden;
 }
 
-.item[data-kind="speed"] { --c: var(--speed); }
-.item[data-kind="xray"] { --c: var(--xray); }
-.item[data-kind="teleport"] { --c: var(--teleport); }
+.slot[data-kind="speed"] { --c: var(--speed); }
+.slot[data-kind="xray"] { --c: var(--xray); }
+.slot[data-kind="teleport"] { --c: var(--teleport); }
 
-.item svg {
-  width: 1.1rem;
-  height: 1.1rem;
+.slot:not([data-kind=""]) {
+  border-color: var(--c);
+}
+
+.slot:disabled {
+  opacity: 1;
+  color: rgb(230 232 238 / 0.55);
+}
+
+.slot .icon {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 20%, transparent);
   color: var(--c);
 }
 
-.item kbd {
+.slot svg {
+  display: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.slot[data-kind="speed"] svg[data-kind="speed"],
+.slot[data-kind="xray"] svg[data-kind="xray"],
+.slot[data-kind="teleport"] svg[data-kind="teleport"] {
+  display: block;
+}
+
+#slot-label {
+  flex: 1;
+  text-align: left;
+}
+
+.slot kbd {
   border-color: rgb(255 255 255 / 0.2);
   color: rgb(230 232 238 / 0.7);
   font-size: 0.75rem;
 }
 
-.item:disabled {
-  opacity: 0.35;
+.slot:disabled kbd {
+  visibility: hidden;
 }
 
-.item.held {
-  border-color: var(--c);
-}
-
-/* while a boost or an x-ray torch runs, a bar drains along the bottom */
-.item::after {
+/* while a boost or an x-ray torch runs, a bar in its colour drains along the bottom */
+.slot::after {
   content: "";
   position: absolute;
   left: 0;
   bottom: 0;
   height: 3px;
   width: calc(var(--left, 0) * 100%);
-  background: var(--c);
+  background: var(--running, transparent);
 }
 
 aside {
@@ -464,11 +490,7 @@ button.quiet {
     display: none;
   }
 
-  .item {
-    padding: 0.5rem 0.6rem;
-  }
-
-  .item kbd {
+  .slot kbd {
     display: none;
   }
 }

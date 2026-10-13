@@ -35,7 +35,7 @@ interface State {
     lit: boolean;
     cooldownMs: number;
     cooldownHeld: boolean;
-    items: Kind[];
+    item: Kind | null;
     speedMs: number;
     xrayMs: number;
   };
@@ -225,18 +225,18 @@ const KEYMAP: Record<string, [number, number]> = {
 
 const keyDirection = (e: KeyboardEvent) => KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key] ?? KEYMAP[e.code];
 
-// 1, 2 and 3 use the powerup in that slot, if you're carrying it
-const USE_KEYS: Record<string, Kind> = { Digit1: "speed", Digit2: "xray", Digit3: "teleport" };
-function use(kind: Kind): void {
-  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "use", kind }));
+// Space uses whatever powerup you're carrying, as does tapping the slot
+function use(): void {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "use" }));
   canvas.focus();
 }
 addEventListener("keydown", (e) => {
-  if (USE_KEYS[e.code] && !(document.activeElement instanceof HTMLInputElement)) return use(USE_KEYS[e.code]);
+  if (e.code !== "Space" || e.repeat || state?.phase !== "playing") return;
+  if (document.activeElement instanceof HTMLInputElement) return;
+  e.preventDefault(); // or Space would also press whichever button has focus
+  use();
 }, { capture: true });
-for (const b of document.querySelectorAll<HTMLButtonElement>(".item")) {
-  b.addEventListener("click", () => use(b.dataset.kind as Kind));
-}
+$("slot").addEventListener("click", use);
 
 addEventListener("keydown", (e) => {
   const dir = keyDirection(e);
@@ -441,22 +441,24 @@ function frame(now: number): void {
   inventory(state);
 }
 
-// The bar of powerups you're carrying. Every slot is always shown, so you
-// learn where each one lives; it lights up once you've picked one up, and
-// drains while a timed one runs.
+// The slot: what you're carrying, if anything. While a boost or an x-ray
+// torch runs, a bar in its colour drains along the bottom, and anything you
+// picked up meanwhile waits its turn.
+const NAMES: Record<Kind, string> = { speed: "Speed", xray: "X-ray", teleport: "Teleport" };
 function inventory(s: State): void {
-  const bar = $("items");
+  const slot = $<HTMLButtonElement>("slot");
   const show = s.phase === "playing" && s.me?.status === "alive";
-  if (bar.hidden === show) bar.hidden = !show;
+  if (slot.hidden === show) slot.hidden = !show;
   if (!show || !s.me) return;
-  for (const b of bar.querySelectorAll<HTMLButtonElement>(".item")) {
-    const kind = b.dataset.kind as Kind;
-    const held = s.me.items.includes(kind);
-    if (b.disabled === held) b.disabled = !held;
-    b.classList.toggle("held", held);
-    const left = kind === "speed" ? s.me.speedMs / SPEED_MS : kind === "xray" ? s.me.xrayMs / XRAY_MS : 0;
-    b.style.setProperty("--left", String(left));
-  }
+  const { item, speedMs, xrayMs } = s.me;
+  const running = speedMs > 0 ? "speed" : xrayMs > 0 ? "xray" : null;
+  const label = item ? (running ? `${NAMES[item]}, after this` : NAMES[item]) : running ? NAMES[running] : "Empty";
+  if (slot.dataset.kind !== (item ?? running ?? "")) slot.dataset.kind = item ?? running ?? "";
+  if ($("slot-label").textContent !== label) $("slot-label").textContent = label;
+  const usable = !!item && !running;
+  if (slot.disabled === usable) slot.disabled = !usable;
+  slot.style.setProperty("--left", String(running === "speed" ? speedMs / SPEED_MS : running === "xray" ? xrayMs / XRAY_MS : 0));
+  slot.style.setProperty("--running", running ? KIND_COLOURS[running] : "transparent");
 }
 
 function pickup(x: number, y: number, kind: Kind, now: number): void {
