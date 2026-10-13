@@ -32,7 +32,8 @@ app, and they are part of what gets marked.
 - **A name is all it takes to play,** and a returning cookie gets the same
   player and record back. That's the core flow; `spec/multiplayer.test.ts`
   guards it.
-- **Catches only count from behind,** with a held beam, never a flash. The
+- **Catches only count from behind or the side** (anywhere outside the 90°
+  in front of the target), with a held beam, never a flash. The
   game rules are written as tests named the way a player would say them; a new
   rule gets a new test before it's trusted.
 - `/` answers and `/readme/` publishes `README.md` in full

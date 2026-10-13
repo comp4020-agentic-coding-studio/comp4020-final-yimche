@@ -148,7 +148,7 @@ describe("fog of war is enforced by the server", () => {
   });
 });
 
-describe("catching only counts from behind", () => {
+describe("catching only counts from behind or the side", () => {
   it("holding the beam on someone's back catches them, a flash doesn't", () => {
     const { game, a, b, h } = playing();
     Object.assign(a, { x: 2.5, y: 2.5, facing: 0 }); // a looks east, straight at b
@@ -214,6 +214,22 @@ describe("catching only counts from behind", () => {
     expect(b.status).toBe("caught");
   });
 
+  it("coming at someone from the side catches them too; only the 90° in front of them is safe", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 }); // a looks east at b
+    Object.assign(b, { x: 6.5, y: 2.5, facing: -Math.PI / 2 }); // b looks north: a is off b's left side
+    game.tick(10_000, CATCH_SECONDS + 0.01);
+    expect(b.status).toBe("caught");
+  });
+
+  it("someone looking within 45° of you is safe from your beam", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 6.5, y: 2.5, facing: Math.PI - Math.PI / 5 }); // 36° off looking straight at a
+    game.tick(10_000, CATCH_SECONDS + 1);
+    expect(b.status).toBe("alive");
+  });
+
   it("one torch on someone's back is not a stand-off", () => {
     const { game, a, b } = playing();
     Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
@@ -225,12 +241,13 @@ describe("catching only counts from behind", () => {
   it("bumping again during the countdown starts the stun over", () => {
     const { game, a, b } = playing();
     const cooldown = CATCH_COOLDOWN_SECONDS * 1000;
-    Object.assign(a, { x: 4, y: 2.5, facing: -Math.PI / 2 });
+    Object.assign(a, { x: 4, y: 2.5, facing: 0 });
     Object.assign(b, { x: 4.3, y: 2.5, facing: Math.PI });
-    game.tick(10_000, 0.05); // a bump with a's torch already off b: countdown from here
-    expect(game.viewFor("a", 10_000).me?.cooldownHeld).toBe(true); // b's torch is on a
+    game.tick(10_000, 0.05); // the first bump, face to face
+    expect(game.viewFor("a", 10_000).me?.cooldownHeld).toBe(true);
 
-    b.facing = Math.PI / 2; // both lights off
+    a.facing = -Math.PI / 2; // both lights off: the countdown starts
+    b.facing = Math.PI / 2;
     game.tick(10_050, 0.05);
     expect(game.viewFor("a", 10_050).me?.cooldownHeld).toBe(false);
 

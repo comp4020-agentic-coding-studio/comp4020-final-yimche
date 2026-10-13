@@ -1,8 +1,8 @@
 # Torchlight
 
 Hide and seek in a dark maze, where everyone is the seeker. Each player carries
-a torch. Hold your beam on someone's back for a moment and they're caught; light
-up their face and they've seen you coming, so it doesn't count. The last one
+a torch. Hold your beam on someone's back or side for a moment and they're
+caught; light up their face and they've seen you coming, so it doesn't count. The last one
 still in the dark wins the round.
 
 ## How to play
@@ -18,7 +18,9 @@ still in the dark wins the round.
 4. Move with <kbd>WASD</kbd> or the arrow keys, or drag on the maze on a phone.
    Your torch points where you walk, or at the mouse.
 5. You can only see what your torch lights, plus a small circle around you.
-   Keep your beam on someone's back and they're out.
+   Keep your beam on someone from behind or from the side and they're out.
+   Only the quarter in front of them, 45° either side of where they're
+   looking, is safe: they can see you coming.
    Every ten seconds the whole maze flashes into view for a moment, and
    everyone still in shows up with it. A countdown in the corner says when the
    next flash is coming: get your bearings, and don't be caught in the open.
@@ -60,7 +62,7 @@ chat, not a game for strangers at scale. So good means:
   your browser the position of anyone you can't see, so nobody can cheat by
   reading the network traffic. The beam you see drawn is the same geometry the
   server judges you by.
-- **Tense rather than twitchy.** Catches need a held beam from behind, not a
+- **Tense rather than twitchy.** Catches need a held beam from behind or the side, not a
   flash, so the game rewards sneaking round a loop and coming up behind someone
   over fast reactions.
 - **A trace that stays.** Your catches, times caught and wins are kept, and the

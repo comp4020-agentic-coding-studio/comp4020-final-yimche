@@ -9,6 +9,7 @@ export const AURA_RADIUS = 1.3; // what you can see around you without the torch
 export const CATCH_SECONDS = 0.4; // how long a beam has to stay on someone
 export const COLLIDE_DISTANCE = PLAYER_RADIUS * 2.2; // close enough to call it a bump
 export const CATCH_COOLDOWN_SECONDS = 3; // a head-on bump or a stand-off buys both of you this long
+export const SAFE_HALF_ANGLE = Math.PI / 4; // you're safe from a beam only within 45° either side of where you look
 export const FLASH_EVERY_MS = 10000; // how often the whole maze flashes into view
 export const FLASH_MS = 1000; // how long a flash takes to fade back to dark
 
@@ -76,12 +77,13 @@ export function angleBetween(a: number, b: number): number {
   return d > Math.PI ? Math.PI * 2 - d : d;
 }
 
-// True when target is facing away from attacker, so attacker is somewhere in
-// target's back half rather than somewhere target is looking. A beam only
-// catches from here; lighting someone's face doesn't, since they saw it coming.
+// True when attacker is anywhere outside the 90° wedge in front of target,
+// 45° either side of where target looks: the sides count as well as the back,
+// 270° in all. A beam only catches from there; lighting someone's face
+// doesn't, since they saw it coming.
 export function isBehind(target: Body, attacker: Body): boolean {
   const toAttacker = Math.atan2(attacker.y - target.y, attacker.x - target.x);
-  return angleBetween(target.facing, toAttacker) > Math.PI / 2;
+  return angleBetween(target.facing, toAttacker) > SAFE_HALF_ANGLE;
 }
 
 // Is b inside a's torch beam? This is visibility, not a catch: a beam can land
