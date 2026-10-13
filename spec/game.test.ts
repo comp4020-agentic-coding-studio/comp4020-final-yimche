@@ -7,7 +7,11 @@ import {
   FLASH_MS,
   SPEED,
   SPEED_MS,
+  TELEPORT_HALF_ANGLE,
+  TELEPORT_MAX,
+  TELEPORT_MIN,
   XRAY_MS,
+  angleBetween,
   canSee,
   inBeam,
   type Maze,
@@ -391,7 +395,37 @@ describe("powerups take your one slot until you use them", () => {
     expect(b.lit).toBe(true);
     b.item = "teleport";
     expect(game.use("b", 10_050)).toBe(true);
-    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThan(4);
+    expect(Math.hypot(b.x - 5.5, b.y - 2.5)).toBeGreaterThanOrEqual(TELEPORT_MIN);
     expect(b.exposure.size + (a.exposure.get("b") ?? 0)).toBe(0);
+  });
+
+  it("a teleport lands somewhere random, but ahead of where you're facing", () => {
+    for (const facing of [0, Math.PI / 2, Math.PI, -Math.PI / 4]) {
+      const spots = new Set<string>();
+      for (let i = 0; i < 20; i++) {
+        const { game, a } = playing();
+        game.maze = open31;
+        game.pickups = [];
+        Object.assign(a, { x: 15.5, y: 15.5, facing });
+        a.item = "teleport";
+        game.use("a", 10_000);
+        const d = Math.hypot(a.x - 15.5, a.y - 15.5);
+        expect(d).toBeGreaterThanOrEqual(TELEPORT_MIN);
+        expect(d).toBeLessThanOrEqual(TELEPORT_MAX);
+        expect(angleBetween(Math.atan2(a.y - 15.5, a.x - 15.5), facing)).toBeLessThanOrEqual(TELEPORT_HALF_ANGLE);
+        spots.add(`${a.x},${a.y}`);
+      }
+      expect(spots.size, "not the same spot every time").toBeGreaterThan(3);
+    }
+  });
+
+  it("a teleport facing the edge of the maze still takes you somewhere", () => {
+    const { game, a } = playing();
+    game.maze = open31;
+    game.pickups = [];
+    Object.assign(a, { x: 28.5, y: 15.5, facing: 0 }); // the outer wall is right ahead
+    a.item = "teleport";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(Math.hypot(a.x - 28.5, a.y - 15.5)).toBeGreaterThanOrEqual(TELEPORT_MIN);
   });
 });

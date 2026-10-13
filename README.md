@@ -39,7 +39,8 @@ still in the dark wins the round.
    - **X-ray**: for a few seconds your torch sees through walls. It shows you
      where people are, but it only catches someone in the open, never through
      a wall.
-   - **Teleport**: drops you in a random room well away from everyone, and
+   - **Teleport**: drops you in a random room somewhere ahead of where
+     you're facing, a few rooms away, so you steer it by turning first. It
      breaks any beam that was on your back.
 
 The maze is sized for the room when the host presses Start: about fifty

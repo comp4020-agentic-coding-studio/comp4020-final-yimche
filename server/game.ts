@@ -10,7 +10,11 @@ import {
   SPEED,
   SPEED_BOOST,
   SPEED_MS,
+  TELEPORT_HALF_ANGLE,
+  TELEPORT_MAX,
+  TELEPORT_MIN,
   XRAY_MS,
+  angleBetween,
   canSee,
   inBeam,
   isBehind,
@@ -258,7 +262,7 @@ export class Game {
   // Uses the powerup you're carrying, mid-round only, and empties the slot. A
   // speed boost and an x-ray torch last a few seconds, and the next powerup
   // can't be used until the running one wears off; a teleport drops you in a
-  // random room well away from everyone else. Returns whether it was used.
+  // random room ahead of where you face. Returns whether it was used.
   use(id: string, now: number): boolean {
     const p = this.players.get(id);
     if (!p || p.status !== "alive" || this.phase !== "playing" || !p.item) return false;
@@ -269,14 +273,31 @@ export class Game {
     if (kind === "xray") p.xrayUntil = now + XRAY_MS;
     if (kind === "teleport") {
       const others = this.alive().filter((o) => o !== p);
-      const far = this.rooms().filter(([x, y]) => others.every((o) => Math.hypot(o.x - x, o.y - y) > 4));
-      const pool = far.length > 0 ? far : this.rooms();
-      [p.x, p.y] = pool[Math.floor(Math.random() * pool.length)];
+      [p.x, p.y] = this.teleportTarget(p, others);
       // a fresh start: whatever beam was on you is broken
       p.exposure.clear();
       for (const o of others) o.exposure.delete(p.id);
     }
     return true;
+  }
+
+  // Where a teleport lands: a random room in a cone ahead of where you face,
+  // so you steer it by turning, preferring one not right beside anyone else.
+  // Facing a wall at the edge of the maze, the cone widens until a room fits.
+  private teleportTarget(p: Player, others: Player[]): [number, number] {
+    const rooms = this.rooms();
+    const ahead = (half: number) =>
+      rooms.filter(([x, y]) => {
+        const d = Math.hypot(x - p.x, y - p.y);
+        return d >= TELEPORT_MIN && d <= TELEPORT_MAX && angleBetween(Math.atan2(y - p.y, x - p.x), p.facing) <= half;
+      });
+    const clear = (pool: [number, number][]) => pool.filter(([x, y]) => others.every((o) => Math.hypot(o.x - x, o.y - y) > 3));
+    for (const half of [TELEPORT_HALF_ANGLE, Math.PI / 2, Math.PI]) {
+      const cone = ahead(half);
+      const pool = clear(cone).length > 0 ? clear(cone) : cone;
+      if (pool.length > 0) return pool[Math.floor(Math.random() * pool.length)];
+    }
+    return rooms[Math.floor(Math.random() * rooms.length)];
   }
 
   private catches(now: number, dt: number): CatchEvent[] {

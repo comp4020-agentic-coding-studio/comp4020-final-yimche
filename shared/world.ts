@@ -22,6 +22,11 @@ export const PICKUP_RADIUS = 0.55; // how close you have to walk to pick one up
 export const SPEED_BOOST = 1.6; // speed multiplier while a boost lasts
 export const SPEED_MS = 4000;
 export const XRAY_MS = 5000; // a torch that sees through walls, but catches only in the open
+// A teleport lands somewhere random, but ahead of you: within 30° either side
+// of where you face, between these distances away.
+export const TELEPORT_HALF_ANGLE = Math.PI / 6;
+export const TELEPORT_MIN = 4;
+export const TELEPORT_MAX = 10;
 
 export interface Maze {
   w: number;
