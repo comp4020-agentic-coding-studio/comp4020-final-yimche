@@ -41,6 +41,50 @@ reached" in `spec/maze.test.ts`, plus a movement test for turning into a side
 corridor when slightly off-centre, which was the first thing that felt wrong
 when actually playing.
 
+## Crit 9: all at once
+
+Torchlight was real-time from the start: the server ticks every room twenty
+times a second and pushes each player their own view over a WebSocket. So the
+week's work was the decision one level up, about what each player should see
+of everyone else, and then playing more and turning what felt wrong into
+rules.
+
+The decision is written up in
+[`600abaf`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/600abaf),
+`docs/decisions/001-fog-of-war-and-the-flash.md`: fog of war enforced by the
+server, plus a flash every ten seconds that shows everyone still in. It got
+there in two steps. The first flash showed walls only
+([`2b0f265`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/2b0f265));
+playing it, people could find their way but still not each other, so the
+flash was changed to show everyone, with a countdown
+([`295b47a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/295b47a)).
+
+### Correcting the work
+
+- **The harness had lost a rule.** Halfway through I noticed the agent had
+  stopped committing as it went. The rule to commit when a batch of
+  instructions is done lived in my crit 5 and assignment 2 files but not here,
+  because this harness was adapted from crit 7's. I had the agent find it in
+  the older repos and bring it back
+  ([`bdeec95`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/bdeec95)).
+- **Powerups went through a redesign of their own.** The first version gave
+  each kind its own key and topped up on a timer
+  ([`53308d0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/53308d0)).
+  I changed it to one slot that a new pickup replaces, with powerups spread
+  across the maze and moved on every pickup so nobody can farm one spot
+  ([`b55175d`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/b55175d)).
+- **The game rules were retuned from playing.** Mazes too big for two players
+  to meet were shrunk and opened up
+  ([`b2c0ff0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/b2c0ff0)),
+  and catches now count from the side as well as behind
+  ([`c5818d4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/c5818d4)).
+  Each change came with a test named as the rule.
+- **The look was redone** after I judged the black and yellow page as reading
+  like generic AI output
+  ([`dacdaa4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/dacdaa4)).
+  The agent checked it in screenshots of a scripted round, which caught the
+  powerup bar showing in the lobby before I saw it.
+
 ## Decision record: the stack
 
 **Context.** A real-time game for a few players in one room, deployed to one
