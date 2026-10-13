@@ -1,5 +1,6 @@
 /* The page is daylight and the maze is the one dark thing on it: paper and
-   ink around a framed patch of night, so the torchlight reads as light. */
+   ink around a framed patch of night, so the torchlight reads as light.
+   Square corners everywhere; the only round things are the players. */
 :root {
   color-scheme: light;
   --bg: #efeae0;
@@ -14,7 +15,6 @@
   --speed: #2f9e6c;
   --xray: #7d63cf;
   --teleport: #d45a8d;
-  --radius: 10px;
   --shadow: 0 1px 2px rgb(29 34 48 / 0.06), 0 4px 16px rgb(29 34 48 / 0.06);
   font-family: "Inter", system-ui, sans-serif;
   font-size: 15px;
@@ -97,7 +97,6 @@ main {
   align-items: center;
   justify-content: center;
   background: var(--night);
-  border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
 }
@@ -123,7 +122,6 @@ canvas:focus-visible {
   background: rgb(250 248 243 / 0.94);
   color: #1d2230;
   padding: 0.4rem 0.9rem;
-  border-radius: 999px;
   font-weight: 600;
   font-size: 0.95rem;
   pointer-events: none;
@@ -150,7 +148,6 @@ canvas:focus-visible {
   background: rgb(22 27 40 / 0.88);
   color: #e6e8ee;
   border: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 10px;
   font-weight: 500;
   font-size: 0.9rem;
   overflow: hidden;
@@ -174,7 +171,6 @@ canvas:focus-visible {
   place-items: center;
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: 6px;
   background: color-mix(in srgb, var(--c) 20%, transparent);
   color: var(--c);
 }
@@ -232,7 +228,6 @@ aside {
 aside section {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
   padding: 0.85rem 1rem;
 }
 
@@ -330,7 +325,6 @@ kbd {
   font-size: 0.8em;
   border: 1px solid var(--line);
   border-bottom-width: 2px;
-  border-radius: 4px;
   padding: 0 0.3rem;
 }
 
@@ -338,7 +332,6 @@ dialog {
   background: var(--surface);
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: 14px;
   padding: 1.5rem;
   width: min(23rem, 90vw);
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.25);
@@ -370,7 +363,6 @@ input,
 button {
   font: inherit;
   padding: 0.55rem 0.8rem;
-  border-radius: 8px;
   border: 1px solid var(--line);
 }
 
