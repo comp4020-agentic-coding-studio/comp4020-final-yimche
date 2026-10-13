@@ -27,6 +27,10 @@ still in the dark wins the round.
    until the light comes off and the countdown runs out. Turning tail out of a
    stand-off doesn't hand the other one a free catch.
 
+The maze is sized for the room when the host presses Start: about a hundred
+rooms of maze per player, so six players have as much space each as two, up
+to a size that still fits on a phone.
+
 Anyone who arrives mid-round watches and joins the next one. When a round
 ends, everyone is back in the lobby, wandering the old maze, until the host
 starts another.

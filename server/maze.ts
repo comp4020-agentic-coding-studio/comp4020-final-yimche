@@ -12,10 +12,15 @@ export function rng(seed: number): () => number {
   };
 }
 
-// How many rooms across the maze is for a given crowd: big enough that two
-// players can lose each other, growing so a showcase room still has space.
+// How many rooms across the maze is for a given crowd. It grows by area, about
+// a hundred rooms each, so a crowd has as much space to hide as a pair; never
+// smaller than two players need to lose each other, and capped so the whole
+// maze still fits legibly on a phone.
+export const ROOMS_PER_PLAYER = 110;
+export const MIN_CELLS = 15;
+export const MAX_CELLS = 25;
 export function mazeCells(players: number): number {
-  return Math.min(22, 13 + players);
+  return Math.max(MIN_CELLS, Math.min(MAX_CELLS, Math.round(Math.sqrt(players * ROOMS_PER_PLAYER))));
 }
 
 // Knocks a few blocks of 2 or 3 rooms a side fully open, pillars and all, so

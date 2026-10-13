@@ -12,6 +12,13 @@ describe("the maze", () => {
     expect(generateMaze(mazeCells(2), 1).w).toBeGreaterThanOrEqual(31);
   });
 
+  it("grows with the room, so a crowd has as much space each as a pair", () => {
+    const area = (n: number) => mazeCells(n) ** 2;
+    expect(area(6) / 6).toBeGreaterThanOrEqual((area(2) / 2) * 0.8);
+    expect(mazeCells(6)).toBeGreaterThan(mazeCells(2));
+    expect(mazeCells(50)).toBe(mazeCells(100)); // capped, so it still fits on a phone
+  });
+
   it("has no dead ends, so there's always a way round", () => {
     for (const seed of [1, 2, 3, 42, 1234]) {
       const m = generateMaze(14, seed);
