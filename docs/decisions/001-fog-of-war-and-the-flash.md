@@ -33,16 +33,13 @@ twitchy** (the game rewards sneaking round a loop over fast reactions).
    people inside their own torch beam or close enough to make out. Fair, since
    a hidden position never leaves the server. But with no other information,
    finding anyone is luck, and a round with two players can drag.
-3. **Fog of war, plus a flash of the walls every 15 seconds.** The first
-   version I built (`2b0f265`). It helped people find their way round the
-   maze, but not find each other, so rounds still dragged.
-4. **Fog of war, plus a flash every 10 seconds that shows everyone still in,
+3. **Fog of war, plus a flash every 10 seconds that shows everyone still in,
    for a second, timed by the server for all players at once.** What I chose
    (`295b47a`).
 
 ## Decision
 
-Option 4. The server decides what each player sees (`viewFor` in
+Option 3. The server decides what each player sees (`viewFor` in
 `server/game.ts`): only people in your beam or your small circle of sight,
 except during the flash, when everyone still in is sent to everyone. The
 server owns the flash's timing, so it happens for every player in the same
@@ -68,9 +65,6 @@ What it costs:
   beam instead of fading in, because the client only learns about someone once
   they are visible. The client can't predict or ease a player it was never
   told about.
-- **A second of perfect information.** For one second in ten, hiding is
-  impossible. Someone who memorises positions during the flash gets a real
-  advantage, which leans the game slightly toward attention over sneaking.
 - **More work per tick on the server.** It computes a separate view for every
   player, with line-of-sight checks against every other player, twenty times
   a second. That's fine for a room of friends, but it is one reason the game
