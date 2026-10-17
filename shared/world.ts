@@ -3,6 +3,7 @@
 
 export const PLAYER_RADIUS = 0.3;
 export const SPEED = 3.2; // tiles per second
+export const ACCELERATION = 12; // how quickly speed eases toward the input, per second
 export const BEAM_RANGE = 5.5;
 export const BEAM_HALF_ANGLE = Math.PI / 7;
 export const AURA_RADIUS = 1.3; // what you can see around you without the torch
@@ -27,6 +28,30 @@ export const XRAY_MS = 5000; // a torch that sees through walls, but catches onl
 export const TELEPORT_HALF_ANGLE = Math.PI / 6;
 export const TELEPORT_MIN = 4;
 export const TELEPORT_MAX = 10;
+
+// The dark closes in so a round can't drag on: a minute in, a ring of safe
+// ground starts shrinking toward one room, and over the next minute it closes
+// down to a small circle there. Stay outside it for three seconds and the dark
+// takes you, out of the round as surely as a catch.
+export const CLOSE_AFTER_MS = 60_000;
+export const CLOSE_TAKES_MS = 60_000;
+export const ZONE_MIN_RADIUS = 1.5;
+export const OUTSIDE_MS = 3000;
+
+export interface Zone {
+  x: number;
+  y: number;
+}
+
+// How far the safe ring reaches, so many ms into a round: wide enough to
+// cover the whole maze until it starts closing, then shrinking steadily.
+export function zoneRadius(maze: Maze, zone: Zone, elapsedMs: number): number {
+  const full = Math.max(
+    ...[[0, 0], [maze.w, 0], [0, maze.h], [maze.w, maze.h]].map(([x, y]) => Math.hypot(x - zone.x, y - zone.y)),
+  );
+  const k = Math.min(1, Math.max(0, (elapsedMs - CLOSE_AFTER_MS) / CLOSE_TAKES_MS));
+  return full + (ZONE_MIN_RADIUS - full) * k;
+}
 
 export interface Maze {
   w: number;

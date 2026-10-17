@@ -1,11 +1,14 @@
 import { generateMaze, mazeCells, rng } from "./maze.ts";
 import {
   CATCH_COOLDOWN_SECONDS,
+  ACCELERATION,
   CATCH_SECONDS,
+  CLOSE_AFTER_MS,
   COLLIDE_DISTANCE,
   FLASH_EVERY_MS,
   FLASH_MS,
   KINDS,
+  OUTSIDE_MS,
   PICKUP_RADIUS,
   SPEED,
   SPEED_BOOST,
@@ -20,9 +23,11 @@ import {
   isBehind,
   isWall,
   move,
+  zoneRadius,
   type Body,
   type Kind,
   type Maze,
+  type Zone,
 } from "../shared/world.ts";
 
 // One room of players. The server owns every position and decides every catch;
@@ -44,6 +49,9 @@ export interface Player extends Body {
   connected: boolean;
   awaySince: number | null;
   input: { dx: number; dy: number; aim: number | null };
+  // how fast this player is moving now, easing toward what the input asks for
+  vx: number;
+  vy: number;
   // how long each other player has had this one's beam on them
   exposure: Map<string, number>;
   // other player id -> when a bump or stand-off with them stops blocking a catch
@@ -56,6 +64,8 @@ export interface Player extends Body {
   item: Kind | null;
   speedUntil: number;
   xrayUntil: number;
+  // when this player stepped outside the closing ring, if they're out there now
+  outsideSince: number | null;
 }
 
 export interface Pickup {
@@ -71,8 +81,9 @@ export interface Hooks {
   caught(roundId: number, catcherId: string, caughtId: string): void;
 }
 
+// A catch, or with no catcher, someone the closing dark took
 export interface CatchEvent {
-  catcher: string;
+  catcher: string | null;
   caught: string;
 }
 
@@ -93,6 +104,9 @@ export class Game {
   nextFlashAt = Infinity;
   // powerups lying in the maze this round
   pickups: Pickup[] = [];
+  // the room the dark closes in on this round, and when the round began
+  zone: Zone = { x: 0, y: 0 };
+  playStartedAt = 0;
   private pickupIds = 0;
   private hooks: Hooks;
   private seed = Date.now();
@@ -119,6 +133,8 @@ export class Game {
         connected: true,
         awaySince: null,
         input: { dx: 0, dy: 0, aim: null },
+        vx: 0,
+        vy: 0,
         exposure: new Map(),
         cooldownUntil: new Map(),
         cooldownHeld: new Set(),
@@ -126,6 +142,7 @@ export class Game {
         item: null,
         speedUntil: 0,
         xrayUntil: 0,
+        outsideSince: null,
       };
       this.players.set(id, p);
       if (this.phase === "countdown") this.spawn([p]);
@@ -171,19 +188,25 @@ export class Game {
     // in the lobby you can wander about while you wait, but nobody gets caught
     if (this.phase === "playing" || this.phase === "waiting") this.walk(now, dt);
     if (this.phase === "playing") this.pickUp();
-    const events = this.phase === "playing" ? this.catches(now, dt) : [];
+    const events = this.phase === "playing" ? [...this.catches(now, dt), ...this.closeIn(now)] : [];
     this.advance(now);
     return events;
   }
 
+  // Speed eases toward what the input asks for rather than jumping to it, so
+  // starting, stopping and turning a corner are smooth instead of snapping.
+  // The torch points wherever you aim; walking only turns it when there's no
+  // aim at all, as on a phone, where there's no cursor to point with.
   private walk(now: number, dt: number): void {
     for (const p of this.alive()) {
-      if (p.input.dx !== 0 || p.input.dy !== 0) {
-        const speed = SPEED * (p.speedUntil > now ? SPEED_BOOST : 1);
-        move(this.maze, p, p.input.dx * speed * dt, p.input.dy * speed * dt);
-        p.facing = Math.atan2(p.input.dy, p.input.dx);
-      }
+      const speed = SPEED * (p.speedUntil > now ? SPEED_BOOST : 1);
+      const k = Math.min(1, dt * ACCELERATION);
+      p.vx += (p.input.dx * speed - p.vx) * k;
+      p.vy += (p.input.dy * speed - p.vy) * k;
+      if (Math.hypot(p.vx, p.vy) < 0.01) p.vx = p.vy = 0;
+      if (p.vx !== 0 || p.vy !== 0) move(this.maze, p, p.vx * dt, p.vy * dt);
       if (p.input.aim !== null) p.facing = p.input.aim;
+      else if (p.input.dx !== 0 || p.input.dy !== 0) p.facing = Math.atan2(p.input.dy, p.input.dx);
     }
   }
 
@@ -300,9 +323,50 @@ export class Game {
     return rooms[Math.floor(Math.random() * rooms.length)];
   }
 
+  zoneRadius(now: number): number {
+    return zoneRadius(this.maze, this.zone, now - this.playStartedAt);
+  }
+
+  // Anyone outside the ring for long enough is out. It isn't a catch: nobody
+  // is credited, and stepping back inside in time clears the clock.
+  private closeIn(now: number): CatchEvent[] {
+    const r = this.zoneRadius(now);
+    const events: CatchEvent[] = [];
+    for (const p of this.alive()) {
+      if (Math.hypot(p.x - this.zone.x, p.y - this.zone.y) <= r) {
+        p.outsideSince = null;
+        continue;
+      }
+      p.outsideSince ??= now;
+      if (now - p.outsideSince < OUTSIDE_MS) continue;
+      events.push({ catcher: null, caught: p.id });
+    }
+    for (const e of events) {
+      const p = this.players.get(e.caught)!;
+      p.status = "caught";
+      p.exposure.clear();
+      p.lit = false;
+      p.outsideSince = null;
+    }
+    if (events.length > 0) this.rosterVersion++;
+    return events;
+  }
+
+  // The room the ring closes on: one picked at random from the middle half of
+  // the maze, so nobody starts the round right on top of it or at the far end.
+  private pickZone(): Zone {
+    const rooms = this.rooms();
+    const middle = rooms.filter(
+      ([x, y]) => Math.abs(x - this.maze.w / 2) <= this.maze.w / 4 && Math.abs(y - this.maze.h / 2) <= this.maze.h / 4,
+    );
+    const pool = middle.length > 0 ? middle : rooms;
+    const [x, y] = pool[Math.floor(Math.random() * pool.length)];
+    return { x, y };
+  }
+
   private catches(now: number, dt: number): CatchEvent[] {
     const alive = this.alive();
-    const events: CatchEvent[] = [];
+    const events: { catcher: string; caught: string }[] = [];
     const caughtNow = new Set<string>();
     for (const target of alive) target.lit = false;
 
@@ -393,6 +457,8 @@ export class Game {
           this.setPhase("playing", 0);
           this.flashStartedAt = -Infinity;
           this.nextFlashAt = now + FLASH_EVERY_MS;
+          this.playStartedAt = now;
+          this.zone = this.pickZone();
           for (let i = 0; i < this.pickupCount(); i++) this.place();
         }
         break;
@@ -437,6 +503,8 @@ export class Game {
       p.item = null;
       p.speedUntil = 0;
       p.xrayUntil = 0;
+      p.outsideSince = null;
+      p.vx = p.vy = 0;
     }
     this.pickups = [];
     this.spawn(players);
@@ -507,7 +575,18 @@ export class Game {
         item: me.item,
         speedMs: Math.max(0, me.speedUntil - now),
         xrayMs: Math.max(0, me.xrayUntil - now),
+        // how long until the dark takes you, while you're outside the ring
+        lostInMs: me.outsideSince === null ? 0 : Math.max(0, me.outsideSince + OUTSIDE_MS - now),
       },
+      zone:
+        this.phase === "playing"
+          ? {
+              x: this.zone.x,
+              y: this.zone.y,
+              r: this.zoneRadius(now),
+              closesInMs: Math.max(0, this.playStartedAt + CLOSE_AFTER_MS - now),
+            }
+          : null,
       others: visible.map((p) => ({ id: p.id, x: p.x, y: p.y, facing: p.facing,
         cooldownMs: cooldownMs(p),
         cooldownHeld: !!me?.cooldownHeld.has(p.id),

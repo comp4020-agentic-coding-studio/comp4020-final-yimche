@@ -16,7 +16,10 @@ still in the dark wins the round.
    Start, a three-second countdown runs and a fresh maze is built for the
    round. If the host leaves for good, whoever came in next takes over.
 4. Move with <kbd>WASD</kbd> or the arrow keys, or drag on the maze on a phone.
-   Your torch points where you walk, or at the mouse.
+   You speed up and slow down smoothly rather than snapping. Your torch points
+   at the mouse, whichever way you walk, so you can back away from someone
+   with your light still on them. On a phone, with no mouse, it points where
+   you walk.
 5. You can only see what your torch lights, plus a small circle around you.
    Keep your beam on someone from behind or from the side and they're out.
    Only the quarter in front of them, 45° either side of where they're
@@ -42,6 +45,12 @@ still in the dark wins the round.
    - **Teleport**: drops you in a random room somewhere ahead of where
      you're facing, a few rooms away, so you steer it by turning first. It
      breaks any beam that was on your back.
+8. The dark closes in so a round can't drag on. A minute in, a red ring
+   appears and shrinks toward one room near the middle of the maze, down to a
+   small circle a minute later. Outside it, a warning counts down from three
+   seconds; step back in before it runs out, or the dark takes you and you're
+   out of the round. Nobody gets a catch for that. A countdown in the corner
+   says when the closing starts.
 
 The maze is sized for the room when the host presses Start: about fifty
 rooms of maze per player, so two players keep running into each other and

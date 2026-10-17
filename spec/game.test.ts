@@ -3,7 +3,10 @@ import { AWAY_GRACE_MS, ENDED_MS, Game, type Hooks } from "../server/game.ts";
 import {
   CATCH_COOLDOWN_SECONDS,
   CATCH_SECONDS,
+  CLOSE_AFTER_MS,
+  CLOSE_TAKES_MS,
   FLASH_EVERY_MS,
+  OUTSIDE_MS,
   FLASH_MS,
   SPEED,
   SPEED_MS,
@@ -427,5 +430,100 @@ describe("powerups take your one slot until you use them", () => {
     a.item = "teleport";
     expect(game.use("a", 10_000)).toBe(true);
     expect(Math.hypot(a.x - 28.5, a.y - 15.5)).toBeGreaterThanOrEqual(TELEPORT_MIN);
+  });
+});
+
+describe("the dark closes in so a round can't drag on", () => {
+  it("for the first minute the ring covers the whole maze", () => {
+    const { game, a, b } = playing(); // lights went out at 10_000
+    game.zone = { x: 6.5, y: 2.5 };
+    Object.assign(a, { x: 1.5, y: 1.5, facing: Math.PI });
+    Object.assign(b, { x: 10.5, y: 3.5, facing: 0 });
+    game.tick(10_000 + CLOSE_AFTER_MS - 1, 0.05);
+    game.tick(10_000 + CLOSE_AFTER_MS + OUTSIDE_MS, 0.05);
+    expect([a.status, b.status]).toEqual(["alive", "alive"]);
+    expect(game.viewFor("a", 10_000).zone?.closesInMs).toBe(CLOSE_AFTER_MS);
+  });
+
+  it("then it shrinks down to a small circle around one room", () => {
+    const { game } = playing();
+    game.zone = { x: 6.5, y: 2.5 };
+    const r = (t: number) => game.zoneRadius(10_000 + t);
+    expect(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS / 2)).toBeLessThan(r(CLOSE_AFTER_MS));
+    expect(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS)).toBeLessThan(2);
+    expect(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS * 5)).toBe(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS));
+  });
+
+  it("staying outside the ring too long takes you out, and nobody gets the catch", () => {
+    const h = hooks();
+    const { game, a, b } = playing(h);
+    game.zone = { x: 6.5, y: 2.5 };
+    Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 1.5, y: 1.5, facing: 0 });
+    const closed = 10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS;
+    game.tick(closed, 0.05);
+    expect(game.viewFor("b", closed).me?.lostInMs).toBe(OUTSIDE_MS); // b is warned first
+    game.tick(closed + OUTSIDE_MS - 1, 0.05);
+    expect(b.status).toBe("alive");
+    game.tick(closed + OUTSIDE_MS, 0.05);
+    expect(b.status).toBe("caught");
+    expect(h.catches).toEqual([]);
+    expect(game.phase).toBe("ended"); // a is the last torch standing
+  });
+
+  it("stepping back inside in time clears the clock", () => {
+    const { game, a, b } = playing();
+    game.zone = { x: 6.5, y: 2.5 };
+    Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 1.5, y: 1.5, facing: 0 });
+    const closed = 10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS;
+    game.tick(closed, 0.05);
+    Object.assign(b, { x: 5.5, y: 2.5 }); // back in, behind a
+    game.tick(closed + OUTSIDE_MS - 1, 0.05);
+    Object.assign(b, { x: 1.5, y: 1.5 }); // and out again: the clock starts over
+    game.tick(closed + OUTSIDE_MS, 0.05);
+    expect(b.status).toBe("alive");
+  });
+});
+
+describe("moving and aiming", () => {
+  it("walking speeds up smoothly rather than starting at full pelt", () => {
+    const { game, a } = playing();
+    Object.assign(a, { x: 1.5, y: 3.5, facing: 0 });
+    game.setInput("a", 1, 0, null);
+    game.tick(10_050, 0.02);
+    const first = a.x - 1.5;
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(SPEED * 0.02);
+    for (let i = 0; i < 20; i++) game.tick(10_100, 0.02);
+    const before = a.x;
+    game.tick(10_100, 0.02);
+    expect(a.x - before).toBeCloseTo(SPEED * 0.02, 2); // up to speed
+  });
+
+  it("letting go glides to a stop instead of halting dead", () => {
+    const { game, a } = playing();
+    Object.assign(a, { x: 1.5, y: 3.5, facing: 0 });
+    game.setInput("a", 1, 0, null);
+    for (let i = 0; i < 20; i++) game.tick(10_100, 0.02);
+    game.setInput("a", 0, 0, null);
+    const before = a.x;
+    game.tick(10_100, 0.02);
+    expect(a.x).toBeGreaterThan(before);
+    for (let i = 0; i < 50; i++) game.tick(10_100, 0.02);
+    const stopped = a.x;
+    game.tick(10_100, 0.02);
+    expect(a.x).toBe(stopped);
+  });
+
+  it("the torch points at the cursor, whichever way you walk", () => {
+    const { game, a } = playing();
+    Object.assign(a, { x: 2.5, y: 3.5, facing: 0 });
+    game.setInput("a", 1, 0, Math.PI / 2); // walking east, aiming south
+    for (let i = 0; i < 5; i++) game.tick(10_100, 0.05);
+    expect(a.facing).toBe(Math.PI / 2);
+    game.setInput("a", 0, -1, Math.PI / 2); // turning north doesn't swing it
+    game.tick(10_100, 0.05);
+    expect(a.facing).toBe(Math.PI / 2);
   });
 });

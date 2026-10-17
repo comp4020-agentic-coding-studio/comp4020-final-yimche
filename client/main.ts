@@ -38,7 +38,9 @@ interface State {
     item: Kind | null;
     speedMs: number;
     xrayMs: number;
+    lostInMs: number;
   };
+  zone: { x: number; y: number; r: number; closesInMs: number } | null;
   others: Seen[];
   pickups: { id: number; kind: Kind; x: number; y: number }[];
 }
@@ -187,7 +189,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
       renderRoster();
       break;
     case "catch":
-      addFeed(`${msg.catcher} caught ${msg.caught}`);
+      addFeed(msg.catcher ? `${msg.catcher} caught ${msg.caught}` : `The dark took ${msg.caught}`);
       break;
     case "state": {
       const first = !state?.me;
@@ -204,6 +206,9 @@ function handle(msg: { t: string } & Record<string, any>): void {
 const keys = new Map<string, [number, number]>();
 let joystick: { id: number; x: number; y: number; dx: number; dy: number } | null = null;
 let aim: number | null = null;
+// where the mouse last was over the maze; the torch points at it from wherever
+// you are, so walking with the cursor still keeps the beam on that spot
+let cursor: { x: number; y: number } | null = null;
 
 // Letters match the character typed (e.key), so WASD means the keys labelled
 // W, A, S and D on any layout; the physical QWERTY position (e.code) is the
@@ -242,17 +247,15 @@ addEventListener("keydown", (e) => {
   const dir = keyDirection(e);
   if (!dir || e.ctrlKey || e.metaKey || e.altKey || document.activeElement instanceof HTMLInputElement) return;
   e.preventDefault();
-  keys.set(e.code, dir);
-  aim = null; // walking with keys points the torch where you walk
+  keys.set(e.code, dir); // the torch stays on the cursor while you walk
 });
 addEventListener("keyup", (e) => keys.delete(e.code));
 addEventListener("blur", () => keys.clear());
 
 canvas.addEventListener("pointermove", (e) => {
-  if (e.pointerType === "mouse" && state?.me) {
-    const [sx, sy] = toScreen(drawn.x, drawn.y);
+  if (e.pointerType === "mouse") {
     const r = canvas.getBoundingClientRect();
-    aim = Math.atan2(e.clientY - r.top - sy, e.clientX - r.left - sx);
+    cursor = { x: e.clientX - r.left, y: e.clientY - r.top };
   }
   if (joystick && e.pointerId === joystick.id) {
     joystick.dx = e.clientX - joystick.x;
@@ -263,7 +266,7 @@ canvas.addEventListener("pointerdown", (e) => {
   if (e.pointerType === "mouse") return;
   canvas.setPointerCapture(e.pointerId);
   joystick = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
-  aim = null;
+  cursor = null; // on a touch screen the torch points where you walk
 });
 const release = (e: PointerEvent) => {
   if (joystick?.id === e.pointerId) joystick = null;
@@ -291,6 +294,10 @@ let lastSent = "";
 setInterval(() => {
   if (socket?.readyState !== WebSocket.OPEN) return;
   const [dx, dy] = direction();
+  if (cursor && state?.me) {
+    const [sx, sy] = toScreen(drawn.x, drawn.y);
+    aim = Math.round(Math.atan2(cursor.y - sy, cursor.x - sx) * 1000) / 1000;
+  } else aim = null;
   const msg = JSON.stringify({ t: "input", dx, dy, aim });
   if (msg !== lastSent) socket.send(msg);
   lastSent = msg;
@@ -364,6 +371,29 @@ function frame(now: number): void {
     }
   }
 
+  // the closing ring: the dark outside it is red, and its edge is a bright line
+  if (state.zone) {
+    const { x, y, r } = state.zone;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(offX, offY, maze.w * scale, maze.h * scale);
+    ctx.arc(offX + x * scale, offY + y * scale, r * scale, 0, Math.PI * 2, true);
+    ctx.clip("evenodd");
+    ctx.fillStyle = "rgb(150 30 40 / 0.35)";
+    ctx.fillRect(offX, offY, maze.w * scale, maze.h * scale);
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(offX, offY, maze.w * scale, maze.h * scale);
+    ctx.clip();
+    ctx.strokeStyle = "rgb(240 90 80 / 0.9)";
+    ctx.lineWidth = Math.max(2, scale * 0.1);
+    ctx.beginPath();
+    ctx.arc(offX + x * scale, offY + y * scale, r * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const playing = me?.status === "alive";
   const myXray = !!me && me.xrayMs > 0;
 
@@ -397,6 +427,18 @@ function frame(now: number): void {
     fctx.arc(offX + drawn.x * scale, offY + drawn.y * scale, AURA_RADIUS * scale, 0, Math.PI * 2);
     fctx.fill();
     ctx.drawImage(fog, 0, 0);
+    if (state.zone) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(offX, offY, maze.w * scale, maze.h * scale);
+      ctx.clip();
+      ctx.strokeStyle = "rgb(240 90 80 / 0.7)";
+      ctx.lineWidth = Math.max(2, scale * 0.1);
+      ctx.beginPath();
+      ctx.arc(offX + state.zone.x * scale, offY + state.zone.y * scale, state.zone.r * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
   // powerups glow through the dark: they're no secret, and worth heading for
   for (const it of state.pickups) pickup(it.x, it.y, it.kind, now);
@@ -427,10 +469,15 @@ function frame(now: number): void {
     ctx.textAlign = "right";
     ctx.fillStyle = flash > 0 ? "#e6e8ee" : "rgb(230 232 238 / 0.65)";
     ctx.fillText(`Flash in ${Math.ceil(state.nextFlashMs / 1000)}`, canvas.width - 12 * dpr, 22 * dpr);
+    if (state.zone) {
+      const closes = state.zone.closesInMs;
+      ctx.fillStyle = closes > 0 ? "rgb(230 232 238 / 0.65)" : "rgb(240 120 110 / 0.9)";
+      ctx.fillText(closes > 0 ? `Dark closes in ${Math.ceil(closes / 1000)}` : "Dark closing", canvas.width - 12 * dpr, 40 * dpr);
+    }
   }
 
-  // a red edge when someone's torch is on you
-  if (me?.lit && state.phase === "playing") {
+  // a red edge when someone's torch is on you, or the dark is about to take you
+  if ((me?.lit || me?.lostInMs) && state.phase === "playing") {
     ctx.strokeStyle = "rgb(240 110 90 / 0.85)";
     ctx.lineWidth = 8 * (devicePixelRatio || 1);
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
@@ -574,6 +621,7 @@ function bannerText(s: State): string {
     case "playing":
       if (s.me?.status === "caught") return "Caught! Watching until the next round";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
+      if (s.me?.lostInMs) return `Outside the ring! Back in within ${Math.ceil(s.me.lostInMs / 1000)}s`;
       if (s.me?.lit) return "You're in someone's light. Move!";
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
