@@ -49,8 +49,12 @@ function playing(h = hooks()) {
   expect(game.phase).toBe("playing");
   game.maze = maze;
   game.pickups = []; // scattered on the real maze; each test lays its own
+  game.zone = { x: maze.w / 2, y: maze.h / 2 }; // so is the ring's centre
   const a = game.players.get("a")!;
   const b = game.players.get("b")!;
+  // spawned on the real maze too: put them in this one, apart and facing walls
+  Object.assign(a, { x: 1.5, y: 1.5, facing: Math.PI });
+  Object.assign(b, { x: 10.5, y: 3.5, facing: 0 });
   return { game, a, b, h };
 }
 

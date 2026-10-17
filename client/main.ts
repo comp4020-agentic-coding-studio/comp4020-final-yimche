@@ -462,18 +462,14 @@ function frame(now: number): void {
     if (state.phase === "playing") shield(drawn.x, drawn.y, me.cooldownMs, me.cooldownHeld, now);
   }
 
-  // when the next flash comes, in the corner where it doesn't cover the maze
-  if (state.phase === "playing" && state.nextFlashMs > 0) {
+  // a warning in the corner for the last ten seconds before the dark starts closing in
+  const closes = state.zone?.closesInMs ?? 0;
+  if (state.phase === "playing" && closes > 0 && closes <= 10_000) {
     const dpr = devicePixelRatio || 1;
     ctx.font = `500 ${13 * dpr}px Inter, system-ui`;
     ctx.textAlign = "right";
-    ctx.fillStyle = flash > 0 ? "#e6e8ee" : "rgb(230 232 238 / 0.65)";
-    ctx.fillText(`Flash in ${Math.ceil(state.nextFlashMs / 1000)}`, canvas.width - 12 * dpr, 22 * dpr);
-    if (state.zone) {
-      const closes = state.zone.closesInMs;
-      ctx.fillStyle = closes > 0 ? "rgb(230 232 238 / 0.65)" : "rgb(240 120 110 / 0.9)";
-      ctx.fillText(closes > 0 ? `Dark closes in ${Math.ceil(closes / 1000)}` : "Dark closing", canvas.width - 12 * dpr, 40 * dpr);
-    }
+    ctx.fillStyle = "rgb(240 120 110 / 0.9)";
+    ctx.fillText(`Dark closes in ${Math.ceil(closes / 1000)}`, canvas.width - 12 * dpr, 22 * dpr);
   }
 
   // a red edge when someone's torch is on you, or the dark is about to take you

@@ -25,8 +25,8 @@ still in the dark wins the round.
    Only the quarter in front of them, 45° either side of where they're
    looking, is safe: they can see you coming.
    Every ten seconds the whole maze flashes into view for a moment, and
-   everyone still in shows up with it. A countdown in the corner says when the
-   next flash is coming: get your bearings, and don't be caught in the open.
+   everyone still in shows up with it: get your bearings, and don't be caught
+   in the open.
 6. Walk into someone head-on, or catch each other in your torches at the same
    time, and you both get a short stun: neither of you can catch the other
    until the light comes off and the countdown runs out. Turning tail out of a
@@ -50,7 +50,7 @@ still in the dark wins the round.
    small circle a minute later. Outside it, a warning counts down from three
    seconds; step back in before it runs out, or the dark takes you and you're
    out of the round. Nobody gets a catch for that. A countdown in the corner
-   says when the closing starts.
+   warns you for the last ten seconds before the closing starts.
 
 The maze is sized for the room when the host presses Start: about fifty
 rooms of maze per player, so two players keep running into each other and
