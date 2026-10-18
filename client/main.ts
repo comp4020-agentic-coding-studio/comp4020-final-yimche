@@ -39,7 +39,6 @@ interface State {
     item: Kind | null;
     speedMs: number;
     xrayMs: number;
-    lostInMs: number;
   };
   zone: { x: number; y: number; r: number; closesInMs: number } | null;
   others: Seen[];
@@ -444,8 +443,8 @@ function frame(now: number): void {
     ctx.fillText(`Dark closes in ${Math.ceil(closes / 1000)}`, canvas.width - 12 * dpr, 22 * dpr);
   }
 
-  // a red edge when someone's torch is on you, or the dark is about to take you
-  if ((me?.lit || me?.lostInMs) && state.phase === "playing") {
+  // a red edge when someone's torch is on you
+  if (me?.lit && state.phase === "playing") {
     ctx.strokeStyle = "rgb(240 110 90 / 0.85)";
     ctx.lineWidth = 8 * (devicePixelRatio || 1);
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
@@ -636,7 +635,6 @@ function bannerText(s: State): string {
     case "playing":
       if (s.me?.status === "caught") return "Caught! Watching until the next round";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
-      if (s.me?.lostInMs) return `The floor's gone! Get back on within ${Math.ceil(s.me.lostInMs / 1000)}s`;
       if (s.me?.lit) return "You're in someone's light. Move!";
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;

@@ -31,19 +31,18 @@ export const TELEPORT_MAX = 10;
 
 // The dark closes in so a round can't drag on: a minute in, the floor starts
 // falling away from the edges toward one room, and over the next minute it
-// shrinks to the few tiles around it. Stand on a fallen tile for three seconds
-// and the dark takes you, out of the round as surely as a catch.
+// shrinks to the few tiles around it. Step onto a fallen tile and you fall,
+// out of the round as surely as a catch.
 export const CLOSE_AFTER_MS = 60_000;
 export const CLOSE_TAKES_MS = 60_000;
 export const ZONE_MIN_RADIUS = 1.5;
-export const OUTSIDE_MS = 3000;
 
 export interface Zone {
   x: number;
   y: number;
 }
 
-// How far the safe ring reaches, so many ms into a round: wide enough to
+// How far the safe floor reaches, so many ms into a round: wide enough to
 // cover the whole maze until it starts closing, then shrinking steadily.
 export function zoneRadius(maze: Maze, zone: Zone, elapsedMs: number): number {
   const full = Math.max(
@@ -53,11 +52,22 @@ export function zoneRadius(maze: Maze, zone: Zone, elapsedMs: number): number {
   return full + (ZONE_MIN_RADIUS - full) * k;
 }
 
-// The floor falls away tile by tile as the ring shrinks: how far past a tile's
-// middle the ring has come, in tiles. Above zero the tile is gone, and
-// standing on a gone tile is standing in the dark.
+// The floor falls away tile by tile as the radius shrinks: how far past a
+// tile's falling point the radius has come, in tiles. Above zero the tile is
+// gone, and standing on a gone tile is falling into the dark. Each tile counts
+// as up to a third nearer than it is, at random, so the floor crumbles in
+// scattered bits rather than a neat ring; the room in the middle never falls.
+const SCATTER = 0.35;
 export function fallDepth(zone: Zone, r: number, tx: number, ty: number): number {
-  return Math.hypot(tx + 0.5 - zone.x, ty + 0.5 - zone.y) - r;
+  const dist = Math.hypot(tx + 0.5 - zone.x, ty + 0.5 - zone.y);
+  return dist * (1 - SCATTER * scatter(zone, tx, ty)) - r;
+}
+
+// A number in [0, 1) fixed for each tile and round, the same on every screen.
+function scatter(zone: Zone, tx: number, ty: number): number {
+  let h = (tx * 374761393 + ty * 668265263 + Math.floor(zone.x * 2) * 2147483647 + Math.floor(zone.y * 2) * 1274126177) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 2 ** 32;
 }
 
 export function tileFallen(zone: Zone, r: number, x: number, y: number): boolean {

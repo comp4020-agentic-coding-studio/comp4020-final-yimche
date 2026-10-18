@@ -6,7 +6,6 @@ import {
   CLOSE_AFTER_MS,
   CLOSE_TAKES_MS,
   FLASH_EVERY_MS,
-  OUTSIDE_MS,
   FLASH_MS,
   SPEED,
   SPEED_MS,
@@ -16,6 +15,7 @@ import {
   XRAY_MS,
   angleBetween,
   canSee,
+  fallDepth,
   inBeam,
   type Maze,
 } from "../shared/world.ts";
@@ -49,7 +49,7 @@ function playing(h = hooks()) {
   expect(game.phase).toBe("playing");
   game.maze = maze;
   game.pickups = []; // scattered on the real maze; each test lays its own
-  game.zone = { x: maze.w / 2, y: maze.h / 2 }; // so is the ring's centre
+  game.zone = { x: maze.w / 2, y: maze.h / 2 }; // so is where the floor falls in toward
   const a = game.players.get("a")!;
   const b = game.players.get("b")!;
   // spawned on the real maze too: put them in this one, apart and facing walls
@@ -438,27 +438,35 @@ describe("powerups take your one slot until you use them", () => {
 });
 
 describe("the dark closes in so a round can't drag on", () => {
-  it("for the first minute the ring covers the whole maze", () => {
+  it("for the first minute none of the floor falls", () => {
     const { game, a, b } = playing(); // lights went out at 10_000
     game.zone = { x: 6.5, y: 2.5 };
     Object.assign(a, { x: 1.5, y: 1.5, facing: Math.PI });
     Object.assign(b, { x: 10.5, y: 3.5, facing: 0 });
     game.tick(10_000 + CLOSE_AFTER_MS - 1, 0.05);
-    game.tick(10_000 + CLOSE_AFTER_MS + OUTSIDE_MS, 0.05);
     expect([a.status, b.status]).toEqual(["alive", "alive"]);
     expect(game.viewFor("a", 10_000).zone?.closesInMs).toBe(CLOSE_AFTER_MS);
   });
 
-  it("then it shrinks down to a small circle around one room", () => {
+  it("then it falls away until only a few tiles around one room are left", () => {
     const { game } = playing();
     game.zone = { x: 6.5, y: 2.5 };
     const r = (t: number) => game.zoneRadius(10_000 + t);
     expect(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS / 2)).toBeLessThan(r(CLOSE_AFTER_MS));
     expect(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS)).toBeLessThan(2);
     expect(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS * 5)).toBe(r(CLOSE_AFTER_MS + CLOSE_TAKES_MS));
+    // the room in the middle never falls
+    expect(fallDepth(game.zone, r(CLOSE_AFTER_MS + CLOSE_TAKES_MS), 6, 2)).toBeLessThan(0);
   });
 
-  it("staying outside the ring too long takes you out, and nobody gets the catch", () => {
+  it("the floor falls in scattered bits, not a neat ring", () => {
+    const zone = { x: 20.5, y: 20.5 };
+    // tiles the same distance out don't all fall at the same moment
+    const ring = [[30, 20], [10, 20], [20, 30], [20, 10]].map(([x, y]) => fallDepth(zone, 0, x, y));
+    expect(new Set(ring.map((d) => d.toFixed(3))).size).toBeGreaterThan(1);
+  });
+
+  it("stepping onto a fallen tile drops you straight away, and nobody gets the catch", () => {
     const h = hooks();
     const { game, a, b } = playing(h);
     game.zone = { x: 6.5, y: 2.5 };
@@ -466,46 +474,9 @@ describe("the dark closes in so a round can't drag on", () => {
     Object.assign(b, { x: 1.5, y: 1.5, facing: 0 });
     const closed = 10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS;
     game.tick(closed, 0.05);
-    expect(game.viewFor("b", closed).me?.lostInMs).toBe(OUTSIDE_MS); // b is warned first
-    game.tick(closed + OUTSIDE_MS - 1, 0.05);
-    expect(b.status).toBe("alive");
-    game.tick(closed + OUTSIDE_MS, 0.05);
     expect(b.status).toBe("caught");
     expect(h.catches).toEqual([]);
     expect(game.phase).toBe("ended"); // a is the last torch standing
-  });
-
-  it("the floor falls a whole tile at a time, so you're safe until your tile goes", () => {
-    const { game, a, b } = playing();
-    game.zone = { x: 6.5, y: 2.5 };
-    Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });
-    // b's tile centre (8.5, 2.5) is 2 from the zone, but b stands near its far edge
-    Object.assign(b, { x: 8.9, y: 2.5, facing: 0 });
-    const shrunkTo = (r: number) => {
-      const full = game.zoneRadius(10_000 + CLOSE_AFTER_MS);
-      const k = (full - r) / (full - game.zoneRadius(10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS));
-      return 10_000 + CLOSE_AFTER_MS + k * CLOSE_TAKES_MS;
-    };
-    const t = shrunkTo(2.2); // past b's body, short of b's tile centre
-    game.tick(t, 0.05);
-    expect(game.viewFor("b", t).me?.lostInMs).toBe(0); // no warning yet
-    Object.assign(b, { x: 9.1 }); // one step on, onto the next tile, which has gone
-    game.tick(t + 1, 0.05);
-    expect(game.viewFor("b", t + 1).me?.lostInMs).toBeGreaterThan(0);
-  });
-
-  it("stepping back inside in time clears the clock", () => {
-    const { game, a, b } = playing();
-    game.zone = { x: 6.5, y: 2.5 };
-    Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });
-    Object.assign(b, { x: 1.5, y: 1.5, facing: 0 });
-    const closed = 10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS;
-    game.tick(closed, 0.05);
-    Object.assign(b, { x: 5.5, y: 2.5 }); // back in, behind a
-    game.tick(closed + OUTSIDE_MS - 1, 0.05);
-    Object.assign(b, { x: 1.5, y: 1.5 }); // and out again: the clock starts over
-    game.tick(closed + OUTSIDE_MS, 0.05);
-    expect(b.status).toBe("alive");
   });
 });
 

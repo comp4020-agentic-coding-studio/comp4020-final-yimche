@@ -8,7 +8,6 @@ import {
   FLASH_EVERY_MS,
   FLASH_MS,
   KINDS,
-  OUTSIDE_MS,
   PICKUP_RADIUS,
   SPEED,
   SPEED_BOOST,
@@ -65,8 +64,6 @@ export interface Player extends Body {
   item: Kind | null;
   speedUntil: number;
   xrayUntil: number;
-  // when this player stepped outside the closing ring, if they're out there now
-  outsideSince: number | null;
 }
 
 export interface Pickup {
@@ -143,7 +140,6 @@ export class Game {
         item: null,
         speedUntil: 0,
         xrayUntil: 0,
-        outsideSince: null,
       };
       this.players.set(id, p);
       if (this.phase === "countdown") this.spawn([p]);
@@ -328,32 +324,24 @@ export class Game {
     return zoneRadius(this.maze, this.zone, now - this.playStartedAt);
   }
 
-  // Anyone standing on a fallen tile for long enough is out. It isn't a catch:
-  // nobody is credited, and stepping back onto solid floor in time clears the clock.
+  // Step onto a fallen tile and you fall, there and then. It isn't a catch:
+  // nobody is credited.
   private closeIn(now: number): CatchEvent[] {
     const r = this.zoneRadius(now);
-    const events: CatchEvent[] = [];
-    for (const p of this.alive()) {
-      if (!tileFallen(this.zone, r, p.x, p.y)) {
-        p.outsideSince = null;
-        continue;
-      }
-      p.outsideSince ??= now;
-      if (now - p.outsideSince < OUTSIDE_MS) continue;
-      events.push({ catcher: null, caught: p.id });
-    }
+    const events: CatchEvent[] = this.alive()
+      .filter((p) => tileFallen(this.zone, r, p.x, p.y))
+      .map((p) => ({ catcher: null, caught: p.id }));
     for (const e of events) {
       const p = this.players.get(e.caught)!;
       p.status = "caught";
       p.exposure.clear();
       p.lit = false;
-      p.outsideSince = null;
     }
     if (events.length > 0) this.rosterVersion++;
     return events;
   }
 
-  // The room the ring closes on: one picked at random from the middle half of
+  // The room the floor falls in toward: one picked at random from the middle half of
   // the maze, so nobody starts the round right on top of it or at the far end.
   private pickZone(): Zone {
     const rooms = this.rooms();
@@ -504,7 +492,6 @@ export class Game {
       p.item = null;
       p.speedUntil = 0;
       p.xrayUntil = 0;
-      p.outsideSince = null;
       p.vx = p.vy = 0;
     }
     this.pickups = [];
@@ -576,8 +563,6 @@ export class Game {
         item: me.item,
         speedMs: Math.max(0, me.speedUntil - now),
         xrayMs: Math.max(0, me.xrayUntil - now),
-        // how long until the dark takes you, while you're outside the ring
-        lostInMs: me.outsideSince === null ? 0 : Math.max(0, me.outsideSince + OUTSIDE_MS - now),
       },
       zone:
         this.phase === "playing"

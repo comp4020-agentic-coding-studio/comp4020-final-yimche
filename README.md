@@ -46,14 +46,12 @@ still in the dark wins the round.
      you're facing, a few rooms away, so you steer it by turning first. It
      breaks any beam that was on your back.
 8. The dark closes in so a round can't drag on. The maze is drawn as a grid
-   of tiles, and a minute in they start falling away into the dark, from the
-   edges toward one room near the middle, until only a few tiles around it
-   are left a minute later. A tile shakes and glows red just before it goes.
-   Standing where the floor has fallen, a warning counts down from three
-   seconds; get back onto solid tiles before it runs out, or the dark takes
-   you and you're out of the round. Nobody gets a catch for that. A countdown
-   in the corner warns you for the last ten seconds before the floor starts
-   to fall.
+   of tiles, and a minute in they start falling away into the dark, in
+   scattered bits from the edges toward one room near the middle, until only
+   a few tiles around it are left a minute later. A tile shakes and glows red
+   just before it goes. Step onto a fallen tile and you fall, straight away,
+   out of the round. Nobody gets a catch for that. A countdown in the corner
+   warns you for the last ten seconds before the floor starts to fall.
 
 The maze is sized for the room when the host presses Start: about fifty
 rooms of maze per player, so two players keep running into each other and
