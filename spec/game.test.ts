@@ -475,6 +475,25 @@ describe("the dark closes in so a round can't drag on", () => {
     expect(game.phase).toBe("ended"); // a is the last torch standing
   });
 
+  it("the floor falls a whole tile at a time, so you're safe until your tile goes", () => {
+    const { game, a, b } = playing();
+    game.zone = { x: 6.5, y: 2.5 };
+    Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });
+    // b's tile centre (8.5, 2.5) is 2 from the zone, but b stands near its far edge
+    Object.assign(b, { x: 8.9, y: 2.5, facing: 0 });
+    const shrunkTo = (r: number) => {
+      const full = game.zoneRadius(10_000 + CLOSE_AFTER_MS);
+      const k = (full - r) / (full - game.zoneRadius(10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS));
+      return 10_000 + CLOSE_AFTER_MS + k * CLOSE_TAKES_MS;
+    };
+    const t = shrunkTo(2.2); // past b's body, short of b's tile centre
+    game.tick(t, 0.05);
+    expect(game.viewFor("b", t).me?.lostInMs).toBe(0); // no warning yet
+    Object.assign(b, { x: 9.1 }); // one step on, onto the next tile, which has gone
+    game.tick(t + 1, 0.05);
+    expect(game.viewFor("b", t + 1).me?.lostInMs).toBeGreaterThan(0);
+  });
+
   it("stepping back inside in time clears the clock", () => {
     const { game, a, b } = playing();
     game.zone = { x: 6.5, y: 2.5 };

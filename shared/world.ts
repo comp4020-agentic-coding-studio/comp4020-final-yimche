@@ -29,10 +29,10 @@ export const TELEPORT_HALF_ANGLE = Math.PI / 6;
 export const TELEPORT_MIN = 4;
 export const TELEPORT_MAX = 10;
 
-// The dark closes in so a round can't drag on: a minute in, a ring of safe
-// ground starts shrinking toward one room, and over the next minute it closes
-// down to a small circle there. Stay outside it for three seconds and the dark
-// takes you, out of the round as surely as a catch.
+// The dark closes in so a round can't drag on: a minute in, the floor starts
+// falling away from the edges toward one room, and over the next minute it
+// shrinks to the few tiles around it. Stand on a fallen tile for three seconds
+// and the dark takes you, out of the round as surely as a catch.
 export const CLOSE_AFTER_MS = 60_000;
 export const CLOSE_TAKES_MS = 60_000;
 export const ZONE_MIN_RADIUS = 1.5;
@@ -51,6 +51,17 @@ export function zoneRadius(maze: Maze, zone: Zone, elapsedMs: number): number {
   );
   const k = Math.min(1, Math.max(0, (elapsedMs - CLOSE_AFTER_MS) / CLOSE_TAKES_MS));
   return full + (ZONE_MIN_RADIUS - full) * k;
+}
+
+// The floor falls away tile by tile as the ring shrinks: how far past a tile's
+// middle the ring has come, in tiles. Above zero the tile is gone, and
+// standing on a gone tile is standing in the dark.
+export function fallDepth(zone: Zone, r: number, tx: number, ty: number): number {
+  return Math.hypot(tx + 0.5 - zone.x, ty + 0.5 - zone.y) - r;
+}
+
+export function tileFallen(zone: Zone, r: number, x: number, y: number): boolean {
+  return fallDepth(zone, r, Math.floor(x), Math.floor(y)) > 0;
 }
 
 export interface Maze {

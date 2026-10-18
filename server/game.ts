@@ -23,6 +23,7 @@ import {
   isBehind,
   isWall,
   move,
+  tileFallen,
   zoneRadius,
   type Body,
   type Kind,
@@ -327,13 +328,13 @@ export class Game {
     return zoneRadius(this.maze, this.zone, now - this.playStartedAt);
   }
 
-  // Anyone outside the ring for long enough is out. It isn't a catch: nobody
-  // is credited, and stepping back inside in time clears the clock.
+  // Anyone standing on a fallen tile for long enough is out. It isn't a catch:
+  // nobody is credited, and stepping back onto solid floor in time clears the clock.
   private closeIn(now: number): CatchEvent[] {
     const r = this.zoneRadius(now);
     const events: CatchEvent[] = [];
     for (const p of this.alive()) {
-      if (Math.hypot(p.x - this.zone.x, p.y - this.zone.y) <= r) {
+      if (!tileFallen(this.zone, r, p.x, p.y)) {
         p.outsideSince = null;
         continue;
       }

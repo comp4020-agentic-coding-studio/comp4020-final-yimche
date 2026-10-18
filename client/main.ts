@@ -7,6 +7,7 @@ import {
   SPEED_MS,
   XRAY_MS,
   castRay,
+  fallDepth,
   type Kind,
   type Maze,
 } from "../shared/world.ts";
@@ -68,7 +69,7 @@ let winner: string | null = null;
 // The night the maze is drawn in, and a colour for each player so you can
 // tell who's who in the dark. A player's colour comes from their id, so it's
 // the same on every screen and from round to round.
-const NIGHT = { floor: "#46536f", wall: "#121722", edge: "#5a6888", light: "255 236 196" };
+const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a", light: "255 236 196" };
 const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
 const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4" };
 function colourOf(id: string): string {
@@ -353,45 +354,17 @@ function frame(now: number): void {
     if (Math.hypot(me.x - drawn.x, me.y - drawn.y) > 2) Object.assign(drawn, { x: me.x, y: me.y });
   }
 
-  // floor and walls, with a lit lip along the top of each wall so they read as raised
-  ctx.fillStyle = NIGHT.floor;
+  // the maze, tile by tile, so you can count the grid. Once the dark closes in,
+  // tiles shake as the edge reaches them, then drop away into the dark.
+  ctx.fillStyle = NIGHT.void;
   ctx.fillRect(offX, offY, maze.w * scale, maze.h * scale);
   const wall = (x: number, y: number) => maze.rows[y]?.[x] === "#";
+  const zone = state.zone;
   for (let y = 0; y < maze.h; y++) {
     for (let x = 0; x < maze.w; x++) {
-      if (!wall(x, y)) continue;
-      const px = offX + x * scale;
-      const py = offY + y * scale;
-      ctx.fillStyle = NIGHT.wall;
-      ctx.fillRect(px, py, scale + 0.5, scale + 0.5);
-      if (y + 1 < maze.h && !wall(x, y + 1)) {
-        ctx.fillStyle = NIGHT.edge;
-        ctx.fillRect(px, py + scale * 0.82, scale + 0.5, scale * 0.18 + 0.5);
-      }
+      const depth = zone ? fallDepth(zone, zone.r, x, y) : -Infinity;
+      tile(x, y, wall(x, y), !wall(x, y + 1) && y + 1 < maze.h, depth, now);
     }
-  }
-
-  // the closing ring: the dark outside it is red, and its edge is a bright line
-  if (state.zone) {
-    const { x, y, r } = state.zone;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(offX, offY, maze.w * scale, maze.h * scale);
-    ctx.arc(offX + x * scale, offY + y * scale, r * scale, 0, Math.PI * 2, true);
-    ctx.clip("evenodd");
-    ctx.fillStyle = "rgb(150 30 40 / 0.35)";
-    ctx.fillRect(offX, offY, maze.w * scale, maze.h * scale);
-    ctx.restore();
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(offX, offY, maze.w * scale, maze.h * scale);
-    ctx.clip();
-    ctx.strokeStyle = "rgb(240 90 80 / 0.9)";
-    ctx.lineWidth = Math.max(2, scale * 0.1);
-    ctx.beginPath();
-    ctx.arc(offX + x * scale, offY + y * scale, r * scale, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
   }
 
   const playing = me?.status === "alive";
@@ -427,17 +400,16 @@ function frame(now: number): void {
     fctx.arc(offX + drawn.x * scale, offY + drawn.y * scale, AURA_RADIUS * scale, 0, Math.PI * 2);
     fctx.fill();
     ctx.drawImage(fog, 0, 0);
-    if (state.zone) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(offX, offY, maze.w * scale, maze.h * scale);
-      ctx.clip();
-      ctx.strokeStyle = "rgb(240 90 80 / 0.7)";
-      ctx.lineWidth = Math.max(2, scale * 0.1);
-      ctx.beginPath();
-      ctx.arc(offX + state.zone.x * scale, offY + state.zone.y * scale, state.zone.r * scale, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+    // the crumbling edge glows through the dark, so you can see where the floor is going
+    if (zone) {
+      for (let y = 0; y < maze.h; y++) {
+        for (let x = 0; x < maze.w; x++) {
+          const depth = fallDepth(zone, zone.r, x, y);
+          if (depth <= -SHAKE_AHEAD || depth > 0) continue;
+          ctx.fillStyle = `rgb(220 70 60 / ${0.35 * (1 + depth / SHAKE_AHEAD)})`;
+          ctx.fillRect(offX + x * scale, offY + y * scale, scale + 0.5, scale + 0.5);
+        }
+      }
     }
   }
   // powerups glow through the dark: they're no secret, and worth heading for
@@ -482,6 +454,53 @@ function frame(now: number): void {
   banner(bannerText(state));
   startButton(state);
   inventory(state);
+}
+
+// How far ahead of the edge a tile starts to shake, and how far behind it a
+// falling tile is gone from sight, both in tiles.
+const SHAKE_AHEAD = 0.6;
+const FALL_DEPTH = 0.8;
+
+// One tile of the maze. Floor tiles sit slightly inset so the grout between
+// them shows the grid; a wall has a lit lip along its bottom when floor lies
+// below it, so it reads as raised. A falling tile shrinks and darkens as it
+// drops, and a fallen one is left as the dark underneath.
+function tile(x: number, y: number, isWall: boolean, lip: boolean, depth: number, now: number): void {
+  if (depth >= FALL_DEPTH) return;
+  const fall = Math.max(0, depth / FALL_DEPTH);
+  const size = 1 - fall * 0.85;
+  let jx = 0;
+  let jy = 0;
+  if (depth > -SHAKE_AHEAD && depth <= 0) {
+    const k = (1 + depth / SHAKE_AHEAD) * scale * 0.04;
+    jx = Math.sin(now / 37 + x * 7 + y * 3) * k;
+    jy = Math.cos(now / 41 + x * 5 + y * 11) * k;
+  }
+  const px = offX + (x + 0.5 - size / 2) * scale + jx;
+  const py = offY + (y + 0.5 - size / 2) * scale + jy + fall * scale * 0.25;
+  const s = size * scale;
+  if (isWall) {
+    ctx.fillStyle = NIGHT.wall;
+    ctx.fillRect(px, py, s + 0.5, s + 0.5);
+    if (lip) {
+      ctx.fillStyle = NIGHT.edge;
+      ctx.fillRect(px, py + s * 0.82, s + 0.5, s * 0.18 + 0.5);
+    }
+  } else {
+    const gap = Math.max(1, scale * 0.04);
+    ctx.fillStyle = NIGHT.grout;
+    ctx.fillRect(px, py, s + 0.5, s + 0.5);
+    ctx.fillStyle = NIGHT.floor;
+    ctx.fillRect(px + gap, py + gap, s - gap, s - gap);
+  }
+  if (fall > 0) {
+    ctx.fillStyle = `rgb(4 5 10 / ${fall})`;
+    ctx.fillRect(px, py, s + 0.5, s + 0.5);
+  } else if (depth > -SHAKE_AHEAD) {
+    // about to go: a red tinge so you see it coming
+    ctx.fillStyle = `rgb(200 50 50 / ${0.3 * (1 + depth / SHAKE_AHEAD)})`;
+    ctx.fillRect(px, py, s + 0.5, s + 0.5);
+  }
 }
 
 // The slot: what you're carrying, if anything. While a boost or an x-ray
@@ -617,7 +636,7 @@ function bannerText(s: State): string {
     case "playing":
       if (s.me?.status === "caught") return "Caught! Watching until the next round";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
-      if (s.me?.lostInMs) return `Outside the ring! Back in within ${Math.ceil(s.me.lostInMs / 1000)}s`;
+      if (s.me?.lostInMs) return `The floor's gone! Get back on within ${Math.ceil(s.me.lostInMs / 1000)}s`;
       if (s.me?.lit) return "You're in someone's light. Move!";
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
