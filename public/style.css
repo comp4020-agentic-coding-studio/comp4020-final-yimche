@@ -389,11 +389,101 @@ button:hover:not(:disabled) {
   filter: brightness(1.08);
 }
 
-.start {
+.lobby {
   position: absolute;
   bottom: 1.25rem;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+}
+
+.lobby[hidden] {
+  display: none;
+}
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.modes button {
+  background: rgb(19 24 36 / 0.8);
+  border-color: rgb(255 255 255 / 0.25);
+  color: #eef0f5;
+  font-weight: 500;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.modes button[aria-checked="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.modes button:disabled {
+  opacity: 1;
+}
+
+.mode-name {
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-left: 0.4rem;
+}
+
+.who {
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+}
+
+.who button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  margin-left: 0.4rem;
+}
+
+.record {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.record div {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.record dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.record dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.team-red {
+  color: #f08a6c;
+}
+
+.team-blue {
+  color: #6ea8f5;
+}
+
+.start {
   font-size: 1.05rem;
   padding: 0.7rem 1.4rem;
   box-shadow: 0 4px 18px rgb(0 0 0 / 0.35);

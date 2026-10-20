@@ -103,3 +103,63 @@ it("every decision record the README links to is published as a page", async () 
     expect(await res.text()).toContain("<h2>Decision</h2>");
   }
 });
+
+async function post(path: string, body: unknown, cookie = "") {
+  return fetch(new URL(path, baseUrl), { method: "POST", body: JSON.stringify(body), headers: { cookie } });
+}
+const sid = (res: Response) => res.headers.get("set-cookie")!.split(";")[0];
+const unique = () => `u${Date.now() % 1e8}${Math.floor(Math.random() * 100)}`;
+
+it("an account is a username and password, and signing in again on another device gets the same player", async () => {
+  const username = unique();
+  const made = await post("/api/signup", { username, password: "lanterns" });
+  expect(made.status).toBe(200);
+  const { id } = await made.json();
+  const again = await post("/api/login", { username: username.toUpperCase(), password: "lanterns" });
+  expect(again.status).toBe(200);
+  const me = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie: sid(again) } })).json();
+  expect(me).toMatchObject({ id, name: username, guest: false, rounds: 0 });
+});
+
+it("a wrong password doesn't sign you in", async () => {
+  const username = unique();
+  await post("/api/signup", { username, password: "lanterns" });
+  expect((await post("/api/login", { username, password: "candles" })).status).toBe(401);
+});
+
+it("a username can only be taken once, whatever the case", async () => {
+  const username = unique();
+  expect((await post("/api/signup", { username, password: "lanterns" })).status).toBe(200);
+  expect((await post("/api/signup", { username: username.toUpperCase(), password: "lanterns" })).status).toBe(409);
+});
+
+it("a guest who makes an account keeps their player and record", async () => {
+  const cookie = await signUp("drifter");
+  const { id } = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie } })).json();
+  const username = unique();
+  expect((await post("/api/signup", { username, password: "lanterns" }, cookie)).status).toBe(200);
+  const me = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie } })).json();
+  expect(me).toMatchObject({ id, name: username, guest: false });
+});
+
+it("the cookie is a session, not the player id everyone in the room is sent", async () => {
+  const cookie = await signUp("secretive");
+  const { id } = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie } })).json();
+  expect(cookie).not.toContain(id);
+  await expect(open(`sid=${id}`)).rejects.toThrow();
+});
+
+it("signing out forgets the session", async () => {
+  const username = unique();
+  const cookie = sid(await post("/api/signup", { username, password: "lanterns" }));
+  await post("/api/logout", {}, cookie);
+  expect((await fetch(new URL("/api/me", baseUrl), { headers: { cookie } })).status).toBe(404);
+});
+
+it("guests never show up on the board", async () => {
+  const cookie = await signUp("ghostly");
+  const { id } = await (await fetch(new URL("/api/me", baseUrl), { headers: { cookie } })).json();
+  const { leaders } = await (await fetch(new URL("/api/board", baseUrl))).json();
+  expect(JSON.stringify(leaders)).not.toContain(id);
+  expect(leaders.every((l: any) => l.name !== "ghostly")).toBe(true);
+});

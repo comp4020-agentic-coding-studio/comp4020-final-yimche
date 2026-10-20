@@ -36,6 +36,13 @@ import {
 
 export type Phase = "waiting" | "countdown" | "playing" | "ended";
 export type Status = "alive" | "caught" | "spectating";
+// Free for all: everyone against everyone. Teams: two sides, red and blue,
+// dealt at random at the start; you can't catch your own side, and the last
+// side with anyone in it wins together. One v one: two play and the rest
+// watch; the loser goes to the back of the line and the next one steps up.
+export type Mode = "ffa" | "teams" | "duel";
+export type Team = "red" | "blue";
+export const MODES: Mode[] = ["ffa", "teams", "duel"];
 
 export const COUNTDOWN_MS = 3000;
 export const ENDED_MS = 5000;
@@ -45,6 +52,8 @@ export const MIN_PLAYERS = 2;
 export interface Player extends Body {
   id: string;
   name: string;
+  guest: boolean;
+  team: Team | null;
   status: Status;
   connected: boolean;
   awaySince: number | null;
@@ -74,9 +83,10 @@ export interface Pickup {
 }
 
 export interface Hooks {
-  roundStarted(seed: number, playerIds: string[]): number;
-  roundEnded(roundId: number, winnerId: string | null): void;
+  roundStarted(mode: Mode, seed: number, players: { id: string; team: Team | null }[]): number;
+  roundEnded(roundId: number, winnerIds: string[]): void;
   caught(roundId: number, catcherId: string, caughtId: string): void;
+  fell(roundId: number, playerId: string): void;
 }
 
 // A catch, or with no catcher, someone the closing dark took
@@ -85,12 +95,20 @@ export interface CatchEvent {
   caught: string;
 }
 
+// Whether one may catch (or be stunned by) the other: anyone, except your own side.
+const rivals = (a: Player, b: Player) => a.team === null || a.team !== b.team;
+
 export class Game {
   phase: Phase = "waiting";
+  mode: Mode = "ffa";
   phaseEndsAt = 0;
   maze: Maze;
   roundId = 0;
+  // the last one standing, or in teams the side left
   winner: string | null = null;
+  winnerTeam: Team | null = null;
+  // join order, for who plays next in one v one
+  line: string[] = [];
   players = new Map<string, Player>();
   hostId: string | null = null;
   // bumped whenever the roster or round changes, so the transport knows to resend them
@@ -114,16 +132,19 @@ export class Game {
     this.maze = generateMaze(mazeCells(1), this.seed);
   }
 
-  join(id: string, name: string, now: number): Player {
+  join(id: string, name: string, now: number, guest = false): Player {
     let p = this.players.get(id);
     if (p) {
       p.name = name;
+      p.guest = guest;
       p.connected = true;
       p.awaySince = null;
     } else {
       p = {
         id,
         name,
+        guest,
+        team: null,
         x: 1.5,
         y: 1.5,
         facing: 0,
@@ -142,8 +163,13 @@ export class Game {
         xrayUntil: 0,
       };
       this.players.set(id, p);
-      if (this.phase === "countdown") this.spawn([p]);
+      if (this.phase === "countdown" && this.mode === "duel") p.status = "spectating";
+      else if (this.phase === "countdown") {
+        if (this.mode === "teams") p.team = this.smallerTeam();
+        this.spawn([p]);
+      }
     }
+    if (!this.line.includes(id)) this.line.push(id);
     this.hostId ??= id;
     this.rosterVersion++;
     this.advance(now);
@@ -174,6 +200,7 @@ export class Game {
     for (const [id, p] of this.players) {
       if (!p.connected && p.awaySince !== null && now - p.awaySince > AWAY_GRACE_MS) {
         this.players.delete(id);
+        this.line = this.line.filter((l) => l !== id);
         this.rosterVersion++;
       }
     }
@@ -336,6 +363,7 @@ export class Game {
       p.status = "caught";
       p.exposure.clear();
       p.lit = false;
+      this.hooks.fell(this.roundId, p.id);
     }
     if (events.length > 0) this.rosterVersion++;
     return events;
@@ -368,6 +396,7 @@ export class Game {
     for (let i = 0; i < alive.length; i++) {
       for (let j = i + 1; j < alive.length; j++) {
         const [a, b] = [alive[i], alive[j]];
+        if (!rivals(a, b)) continue; // teammates pass by each other
         const touching =
           Math.hypot(a.x - b.x, a.y - b.y) <= COLLIDE_DISTANCE &&
           !isBehind(a, b) &&
@@ -392,7 +421,7 @@ export class Game {
 
     for (const seeker of alive) {
       for (const target of alive) {
-        if (seeker === target) continue;
+        if (seeker === target || !rivals(seeker, target)) continue;
         const catchable =
           inBeam(this.maze, seeker, target) &&
           isBehind(target, seeker) &&
@@ -423,6 +452,14 @@ export class Game {
 
   // The host starts the round, once there's someone to play against. Anyone
   // else asking is ignored. Returns whether the countdown began.
+  // The host picks the mode, in the lobby only. Returns whether it changed.
+  setMode(id: string, mode: Mode): boolean {
+    if (id !== this.hostId || this.phase !== "waiting" || !MODES.includes(mode)) return false;
+    this.mode = mode;
+    this.rosterVersion++;
+    return true;
+  }
+
   start(id: string, now: number): boolean {
     if (id !== this.hostId || this.phase !== "waiting" || this.present().length < MIN_PLAYERS) return false;
     this.startCountdown(now);
@@ -439,10 +476,10 @@ export class Game {
       case "waiting":
         break;
       case "countdown":
-        if (this.present().length < MIN_PLAYERS) this.setPhase("waiting", 0);
+        if (this.alive().length < MIN_PLAYERS) this.setPhase("waiting", 0);
         else if (now >= this.phaseEndsAt) {
-          const ids = this.alive().map((p) => p.id);
-          this.roundId = this.hooks.roundStarted(this.seed, ids);
+          const players = this.alive().map((p) => ({ id: p.id, team: p.team }));
+          this.roundId = this.hooks.roundStarted(this.mode, this.seed, players);
           this.setPhase("playing", 0);
           this.flashStartedAt = -Infinity;
           this.nextFlashAt = now + FLASH_EVERY_MS;
@@ -458,11 +495,15 @@ export class Game {
         }
         // someone away past the grace period was dropped in tick(), which forfeits
         const alive = this.alive();
-        if (alive.length <= 1) {
-          this.pickups = [];
+        if (this.mode === "teams") {
+          const sides = new Set(alive.map((p) => p.team));
+          if (sides.size > 1) break;
+          this.winnerTeam = alive[0]?.team ?? null;
+          const side = [...this.players.values()].filter((p) => p.team !== null && p.team === this.winnerTeam);
+          this.endRound(now, side.map((p) => p.id));
+        } else if (alive.length <= 1) {
           this.winner = alive[0]?.id ?? null;
-          this.hooks.roundEnded(this.roundId, this.winner);
-          this.setPhase("ended", now + ENDED_MS);
+          this.endRound(now, this.winner ? [this.winner] : []);
         }
         break;
       }
@@ -477,12 +518,40 @@ export class Game {
     }
   }
 
+  private endRound(now: number, winnerIds: string[]): void {
+    this.pickups = [];
+    this.hooks.roundEnded(this.roundId, winnerIds);
+    // one v one: whoever lost goes to the back of the line
+    if (this.mode === "duel") {
+      const losers = this.line.filter((id) => this.players.get(id)?.status === "caught");
+      this.line = [...this.line.filter((id) => !losers.includes(id)), ...losers];
+    }
+    this.setPhase("ended", now + ENDED_MS);
+  }
+
+  // The side with fewer players in it now, red on a tie.
+  private smallerTeam(): Team {
+    const count = (t: Team) => this.alive().filter((p) => p.team === t).length;
+    return count("blue") < count("red") ? "blue" : "red";
+  }
+
   private startCountdown(now: number): void {
     this.seed = Math.floor(Math.random() * 2 ** 31);
-    const players = [...this.players.values()].filter((p) => p.connected);
+    let players = [...this.players.values()].filter((p) => p.connected);
+    if (this.mode === "duel") {
+      // the first two in line play; everyone else watches this one
+      const up = this.line.filter((id) => this.players.get(id)?.connected).slice(0, 2);
+      for (const p of players) if (!up.includes(p.id)) p.status = "spectating";
+      players = players.filter((p) => up.includes(p.id));
+    }
+    // teams are dealt at random, alternating, so the sides differ by one at most
+    const dealt = [...players].sort(() => Math.random() - 0.5);
+    for (const p of this.players.values()) p.team = null;
+    if (this.mode === "teams") dealt.forEach((p, i) => (p.team = i % 2 === 0 ? "red" : "blue"));
     // the maze grows with the room so a crowd still has space to hide
     this.maze = generateMaze(mazeCells(players.length), this.seed);
     this.winner = null;
+    this.winnerTeam = null;
     for (const p of players) {
       p.status = "alive";
       p.exposure.clear();
@@ -586,6 +655,7 @@ export class Game {
     return {
       t: "roster" as const,
       host: this.hostId,
+      mode: this.mode,
       alive: this.alive().length,
       total: [...this.players.values()].filter((p) => p.status !== "spectating").length,
       players: [...this.players.values()].map((p) => ({
@@ -593,6 +663,8 @@ export class Game {
         name: p.name,
         status: p.status,
         away: !p.connected,
+        guest: p.guest,
+        team: p.team,
       })),
     };
   }
@@ -602,8 +674,10 @@ export class Game {
       t: "round" as const,
       id: this.roundId,
       phase: this.phase,
+      mode: this.mode,
       maze: this.maze.rows,
       winner: this.winner && (this.players.get(this.winner)?.name ?? null),
+      winnerTeam: this.winnerTeam,
     };
   }
 }

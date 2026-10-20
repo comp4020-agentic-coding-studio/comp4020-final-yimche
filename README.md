@@ -7,14 +7,26 @@ still in the dark wins the round.
 
 ## How to play
 
-1. Open the app and give yourself a name. That's the whole sign-up: a cookie
-   remembers you, so your record is still there when you come back.
+1. Open the app and give yourself a name to play as a guest. A cookie
+   remembers you, so your record is still there when you come back to the
+   same browser, but a guest's record is only shown to them and never goes on
+   the board. Make an account (a username and password) to get on the board
+   and sign in from any device; a guest who makes one keeps their record.
 2. Make a new room, or pick one that's open. Each room has a four-letter code
    and its own link: send the link to your friends and they land straight in
    it. Several groups can play at once without seeing each other.
-3. The first one into a room is its host. When everyone's in, the host presses
-   Start, a three-second countdown runs and a fresh maze is built for the
-   round. If the host leaves for good, whoever came in next takes over.
+3. The first one into a room is its host. The host picks the mode, and when
+   everyone's in presses Start; a three-second countdown runs and a fresh maze
+   is built for the round. If the host leaves for good, whoever came in next
+   takes over. There are three modes:
+   - **Free for all**: everyone against everyone; the last torch standing wins.
+   - **Teams**: everyone is dealt at random into Red or Blue, as evenly as the
+     numbers allow, and wears their side's colour. Your torch doesn't catch a
+     teammate, and bumping one doesn't stun you. When one side is all caught,
+     everyone on the other side wins, the caught ones too.
+   - **One v one**: the first two in line play and everyone else watches. The
+     loser goes to the back of the line, so the winner stays on and the next
+     one steps up.
 4. Move with <kbd>WASD</kbd> or the arrow keys, or drag on the maze on a phone.
    You speed up and slow down smoothly rather than snapping. Your torch points
    at the mouse, whichever way you walk, so you can back away from someone
@@ -67,9 +79,10 @@ starts another.
 This is a game for a handful of friends in the same room or the same group
 chat, not a game for strangers at scale. So good means:
 
-- **Ten seconds from link to playing.** No account, no settings. A name and
-  you're in; a room link takes you straight to your friends, and one of you
-  says when to go.
+- **Ten seconds from link to playing.** No account needed, no settings. A
+  name and you're in as a guest; a room link takes you straight to your
+  friends, and one of you says when to go. An account is there for whoever
+  wants their record on the board.
 - **Fair, and seen to be fair.** The server decides every catch and never sends
   your browser the position of anyone you can't see, so nobody can cheat by
   reading the network traffic. The beam you see drawn is the same geometry the
@@ -77,8 +90,9 @@ chat, not a game for strangers at scale. So good means:
 - **Tense rather than twitchy.** Catches need a held beam from behind or the side, not a
   flash, so the game rewards sneaking round a loop and coming up behind someone
   over fast reactions.
-- **A trace that stays.** Your catches, times caught and wins are kept, and the
-  board shows the best seekers, so coming back the next day means something.
+- **A trace that stays.** Rounds played, wins, catches, times caught and
+  falls are kept, and the board shows the best seekers with accounts, so
+  coming back the next day means something.
 - **Works on a phone.** Half of a group of friends will open the link on one.
 
 ## What shaped it

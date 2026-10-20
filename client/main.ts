@@ -14,6 +14,8 @@ import {
 
 type Phase = "waiting" | "countdown" | "playing" | "ended";
 type Status = "alive" | "caught" | "spectating";
+type Mode = "ffa" | "teams" | "duel";
+type Team = "red" | "blue";
 interface Seen {
   id: string;
   x: number;
@@ -49,6 +51,8 @@ interface RosterEntry {
   name: string;
   status: Status;
   away: boolean;
+  guest: boolean;
+  team: Team | null;
 }
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -65,13 +69,21 @@ let maze: Maze = { w: 1, h: 1, rows: ["#"] };
 let state: State | null = null;
 let roster: RosterEntry[] = [];
 let winner: string | null = null;
+let winnerTeam: Team | null = null;
+let mode: Mode = "ffa";
+const MODE_NAMES: Record<Mode, string> = { ffa: "Free for all", teams: "Teams", duel: "One v one" };
+const TEAM_NAMES: Record<Team, string> = { red: "Red", blue: "Blue" };
 // The night the maze is drawn in, and a colour for each player so you can
 // tell who's who in the dark. A player's colour comes from their id, so it's
 // the same on every screen and from round to round.
 const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a", light: "255 236 196" };
 const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
 const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4" };
+const TEAM_COLOURS: Record<Team, string> = { red: "#f08a6c", blue: "#6ea8f5" };
+// In teams, everyone wears their side's colour, so friend and rival read at a glance.
 function colourOf(id: string): string {
+  const team = roster.find((r) => r.id === id)?.team;
+  if (team) return TEAM_COLOURS[team];
   let h = 0;
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return PLAYER_COLOURS[h % PLAYER_COLOURS.length];
@@ -82,23 +94,63 @@ let lastFrame = performance.now();
 
 // ---------- joining ----------
 
+// A name and you're in as a guest; or sign in, or make an account, to keep a
+// record on the board and take it to any device.
 async function start(): Promise<void> {
   const res = await fetch("/api/me");
   if (res.ok) return enter();
-  const dialog = $<HTMLDialogElement>("join");
-  dialog.showModal();
-  $<HTMLFormElement>("join-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = $<HTMLInputElement>("name").value;
-    const r = await fetch("/api/name", { method: "POST", body: JSON.stringify({ name }) });
-    if (!r.ok) {
-      $("join-error").textContent = (await r.json()).error;
-      return;
-    }
-    dialog.close();
-    enter();
-  });
+  $<HTMLDialogElement>("join").showModal();
 }
+
+$<HTMLFormElement>("join-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = $<HTMLInputElement>("name").value;
+  const r = await fetch("/api/name", { method: "POST", body: JSON.stringify({ name }) });
+  if (!r.ok) {
+    $("join-error").textContent = (await r.json()).error;
+    return;
+  }
+  $<HTMLDialogElement>("join").close();
+  enter();
+});
+
+// The account dialog serves signing in, signing up from scratch, and a guest
+// making an account mid-game (who keeps their player, so stays in the room).
+let accountFromGame = false;
+function openAccount(fromGame: boolean): void {
+  accountFromGame = fromGame;
+  $("account-error").textContent = "";
+  $("account-back").hidden = fromGame;
+  $<HTMLDialogElement>("join").close();
+  $<HTMLDialogElement>("account").showModal();
+}
+$("to-account").addEventListener("click", () => openAccount(false));
+$("make-account").addEventListener("click", () => openAccount(true));
+$("account-back").addEventListener("click", () => {
+  $<HTMLDialogElement>("account").close();
+  $<HTMLDialogElement>("join").showModal();
+});
+async function account(path: "/api/login" | "/api/signup"): Promise<void> {
+  const body = { username: $<HTMLInputElement>("username").value, password: $<HTMLInputElement>("password").value };
+  const r = await fetch(path, { method: "POST", body: JSON.stringify(body) });
+  if (!r.ok) {
+    $("account-error").textContent = (await r.json()).error;
+    return;
+  }
+  $<HTMLDialogElement>("account").close();
+  // signing in as someone else needs a fresh socket under the new player;
+  // a guest upgrading is the same player, so only the record changes
+  if (accountFromGame && path === "/api/signup") refreshRecord();
+  else if (socket) location.reload();
+  else enter();
+}
+$<HTMLFormElement>("account-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  account("/api/login");
+});
+$("signup").addEventListener("click", () => {
+  if ($<HTMLFormElement>("account-form").reportValidity()) account("/api/signup");
+});
 
 // A link with a room in it goes straight in; otherwise pick one, or make one.
 async function enter(): Promise<void> {
@@ -111,7 +163,7 @@ async function enter(): Promise<void> {
     connect();
   };
   const { rooms } = (await (await fetch("/api/rooms")).json()) as {
-    rooms: { code: string; phase: string; players: number; host: string | null }[];
+    rooms: { code: string; phase: string; players: number; host: string | null; mode: Mode }[];
   };
   $("room-list").replaceChildren(
     ...rooms.map((r) => {
@@ -123,7 +175,7 @@ async function enter(): Promise<void> {
       b.addEventListener("click", () => go(r.code));
       const note = document.createElement("small");
       const busy = r.phase === "waiting" ? "in the lobby" : "mid-round";
-      note.textContent = `${r.host ?? "nobody"}'s room, ${r.players} in, ${busy}`;
+      note.textContent = `${r.host ?? "nobody"}'s room, ${MODE_NAMES[r.mode]}, ${r.players} in, ${busy}`;
       li.append(b, note);
       return li;
     }),
@@ -154,7 +206,7 @@ function connect(): void {
   ws.onmessage = (ev) => handle(JSON.parse(ev.data));
   ws.onclose = (ev) => {
     if (ev.code === 4000) {
-      $("start").hidden = true;
+      $("lobby").hidden = true;
       banner("Playing in another tab");
       return;
     }
@@ -178,6 +230,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
       const rows = msg.maze as string[];
       maze = { w: rows[0].length, h: rows.length, rows };
       winner = msg.winner;
+      winnerTeam = msg.winnerTeam;
       if (msg.phase === "countdown") $("feed").replaceChildren();
       if (msg.phase === "ended") refreshRecord();
       resize();
@@ -186,6 +239,8 @@ function handle(msg: { t: string } & Record<string, any>): void {
     case "roster":
       roster = msg.players;
       hostId = msg.host;
+      mode = msg.mode;
+      $("mode-name").textContent = MODE_NAMES[mode];
       renderRoster();
       break;
     case "catch":
@@ -558,17 +613,31 @@ function trail(x: number, y: number, facing: number): void {
   }
 }
 
-// Only the host gets the button, and it only works with someone to play against.
+// In the lobby everyone sees which mode is picked; only the host can change
+// it, and only the host gets the Start button, which needs someone to play against.
 function startButton(s: State): void {
+  const lobby = $("lobby");
+  const show = s.phase === "waiting" && myId !== "" && socket?.readyState === WebSocket.OPEN;
+  if (lobby.hidden === show) lobby.hidden = !show;
+  const host = hostId === myId;
   const button = $<HTMLButtonElement>("start");
-  const show = s.phase === "waiting" && myId !== "" && hostId === myId && socket?.readyState === WebSocket.OPEN;
-  if (button.hidden === show) button.hidden = !show;
+  if (button.hidden === host) button.hidden = !host;
   const ready = roster.filter((p) => !p.away).length >= 2;
   if (button.disabled === ready) button.disabled = !ready;
+  for (const b of $("modes").querySelectorAll<HTMLButtonElement>("button")) {
+    const on = String(b.dataset.mode === mode);
+    if (b.getAttribute("aria-checked") !== on) b.setAttribute("aria-checked", on);
+    if (b.disabled === host) b.disabled = !host;
+  }
 }
 
 $("start").addEventListener("click", () => {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "start" }));
+  canvas.focus();
+});
+$("modes").addEventListener("click", (e) => {
+  const picked = (e.target as HTMLElement).closest<HTMLButtonElement>("button")?.dataset.mode;
+  if (picked && socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "mode", mode: picked }));
   canvas.focus();
 });
 
@@ -624,16 +693,21 @@ function bannerText(s: State): string {
   switch (s.phase) {
     case "waiting": {
       const others = roster.filter((p) => p.id !== myId && !p.away).length;
-      if (hostId === myId) return others === 0 ? "Send a friend the link to play" : "Start when everyone's in";
+      if (hostId === myId) return others === 0 ? "Send a friend the link to play" : "Pick a mode, and start when everyone's in";
       const host = roster.find((p) => p.id === hostId)?.name ?? "the host";
-      return `Waiting for ${host} to start`;
+      return `Waiting for ${host} to start ${MODE_NAMES[mode].toLowerCase()}`;
     }
-    case "countdown":
+    case "countdown": {
+      const team = roster.find((p) => p.id === myId)?.team;
+      if (team) return `You're on ${TEAM_NAMES[team]}. Lights out in ${secs}`;
       return `Lights out in ${secs}`;
+    }
     case "ended":
+      if (winnerTeam) return `${TEAM_NAMES[winnerTeam]} wins the round`;
       return winner ? `${winner} is the last torch standing` : "Nobody left standing";
     case "playing":
       if (s.me?.status === "caught") return "Caught! Watching until the next round";
+      if (s.me?.status === "spectating" && mode === "duel") return "Watching the duel; you're up when it's your turn";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
       if (s.me?.lit) return "You're in someone's light. Move!";
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
@@ -656,7 +730,8 @@ function banner(text: string): void {
 // The tracker lists your opponents only: who is still out there in the dark
 // for you to find. Your own status is in the banner over the maze.
 function renderRoster(): void {
-  const opponents = roster.filter((p) => p.id !== myId && p.status !== "spectating");
+  const myTeam = roster.find((p) => p.id === myId)?.team;
+  const opponents = roster.filter((p) => p.id !== myId && p.status !== "spectating" && (!myTeam || p.team !== myTeam));
   const hiding = opponents.filter((p) => p.status === "alive").length;
   $("count").textContent =
     opponents.length === 0
@@ -676,7 +751,8 @@ function renderRoster(): void {
         name.textContent = p.name;
         name.className = p.status;
         const note = document.createElement("small");
-        const role = p.id === hostId ? "host" : "";
+        const myTeam = roster.find((r) => r.id === myId)?.team;
+        const role = p.team && p.team === myTeam ? "teammate" : p.id === hostId ? "host" : "";
         note.textContent = p.away ? "away" : p.status === "spectating" ? "next round" : p.status === "caught" ? "caught" : role;
         li.append(swatch, name, note);
         return li;
@@ -690,14 +766,45 @@ function addFeed(text: string): void {
   $("feed").prepend(li);
 }
 
+// Your record as a few numbers, and who you're signed in as. A guest's
+// record is kept too, but only in this browser and never on the board.
 async function refreshRecord(): Promise<void> {
   const [me, board] = await Promise.all([fetch("/api/me"), fetch("/api/board")]);
   if (me.ok) {
     const r = await me.json();
-    $("record").textContent =
-      r.rounds === 0
-        ? `${r.name}, no rounds played yet`
-        : `${r.name}: ${r.catches} catches, ${r.wins} wins, caught ${r.caught} times in ${r.rounds} rounds`;
+    const who = $("who");
+    who.textContent = r.guest ? `${r.name} (guest)` : r.name;
+    if (!r.guest) {
+      const out = document.createElement("button");
+      out.type = "button";
+      out.className = "quiet";
+      out.textContent = "Sign out";
+      out.addEventListener("click", async () => {
+        await fetch("/api/logout", { method: "POST" });
+        location.reload();
+      });
+      who.append(out);
+    }
+    $("guest-note").hidden = !r.guest;
+    const stats: [string, number][] = [
+      ["played", r.rounds],
+      ["won", r.wins],
+      ["caught others", r.catches],
+      ["got caught", r.caught],
+      ["fell", r.falls],
+      ["win rate", r.rounds ? Math.round((100 * r.wins) / r.rounds) : 0],
+    ];
+    $("record").replaceChildren(
+      ...stats.map(([label, n]) => {
+        const div = document.createElement("div");
+        const dt = document.createElement("dt");
+        dt.textContent = label;
+        const dd = document.createElement("dd");
+        dd.textContent = label === "win rate" ? `${n}%` : String(n);
+        div.append(dt, dd);
+        return div;
+      }),
+    );
   }
   if (board.ok) {
     const { leaders } = (await board.json()) as { leaders: { name: string; catches: number; wins: number }[] };

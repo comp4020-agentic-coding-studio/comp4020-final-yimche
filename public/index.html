@@ -22,7 +22,14 @@
       <section class="stage" aria-label="Maze">
         <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys."></canvas>
         <div id="banner" class="banner" role="status" aria-live="polite"></div>
-        <button id="start" class="start" type="button" hidden>Start the round</button>
+        <div id="lobby" class="lobby" hidden>
+          <div id="modes" class="modes" role="radiogroup" aria-label="Game mode">
+            <button type="button" data-mode="ffa" role="radio">Free for all</button>
+            <button type="button" data-mode="teams" role="radio">Teams</button>
+            <button type="button" data-mode="duel" role="radio">One v one</button>
+          </div>
+          <button id="start" class="start" type="button">Start the round</button>
+        </div>
         <button id="slot" class="slot" type="button" data-kind="" hidden>
           <span class="icon" aria-hidden="true">
             <svg data-kind="speed" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>
@@ -36,7 +43,7 @@
 
       <aside>
         <section aria-labelledby="room-h">
-          <h2 id="room-h">Room</h2>
+          <h2 id="room-h">Room <small id="mode-name" class="mode-name"></small></h2>
           <p class="room"><span id="room-code" class="code">····</span>
             <button id="copy" type="button" class="quiet">Copy link</button>
             <a href="/">Other rooms</a></p>
@@ -52,7 +59,10 @@
         </section>
         <section aria-labelledby="me-h">
           <h2 id="me-h">Your record</h2>
-          <p id="record">No rounds played yet</p>
+          <p id="who" class="who"></p>
+          <dl id="record" class="record"></dl>
+          <p id="guest-note" class="help" hidden>Playing as a guest: this record stays in this browser and
+            isn't on the board. <button id="make-account" type="button" class="quiet">Make an account</button> to keep it anywhere.</p>
         </section>
         <section aria-labelledby="board-h">
           <h2 id="board-h">Best seekers</h2>
@@ -72,7 +82,22 @@
         <label for="name">Your name</label>
         <input id="name" name="name" maxlength="16" required autocomplete="nickname" />
         <p id="join-error" class="error" role="alert"></p>
-        <button type="submit">Enter the dark</button>
+        <button type="submit">Play as a guest</button>
+        <button id="to-account" type="button" class="quiet">Sign in or make an account</button>
+      </form>
+    </dialog>
+
+    <dialog id="account">
+      <form method="dialog" id="account-form">
+        <h2>Your account</h2>
+        <label for="username">Username</label>
+        <input id="username" name="username" maxlength="16" required autocomplete="username" />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" minlength="6" required autocomplete="current-password" />
+        <p id="account-error" class="error" role="alert"></p>
+        <button type="submit" value="login">Sign in</button>
+        <button id="signup" type="button" class="quiet">Make a new account</button>
+        <button id="account-back" type="button" class="quiet">Back</button>
       </form>
     </dialog>
 

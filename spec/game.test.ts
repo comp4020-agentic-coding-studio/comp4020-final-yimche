@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AWAY_GRACE_MS, ENDED_MS, Game, type Hooks } from "../server/game.ts";
+import { AWAY_GRACE_MS, ENDED_MS, Game, type Hooks, type Mode } from "../server/game.ts";
 import {
   CATCH_COOLDOWN_SECONDS,
   CATCH_SECONDS,
@@ -30,13 +30,18 @@ const maze: Maze = {
   rows: ["############", "#.....#....#", "#..........#", "#..........#", "############"],
 };
 
-const hooks = (): Hooks & { catches: [string, string][] } => {
+const hooks = (): Hooks & { catches: [string, string][]; winners: string[][]; falls: string[] } => {
   const catches: [string, string][] = [];
+  const winners: string[][] = [];
+  const falls: string[] = [];
   return {
     catches,
+    winners,
+    falls,
     roundStarted: () => 1,
-    roundEnded: () => {},
+    roundEnded: (_r, ids) => winners.push(ids),
     caught: (_r, a, b) => catches.push([a, b]),
+    fell: (_r, id) => falls.push(id),
   };
 };
 
@@ -519,5 +524,120 @@ describe("moving and aiming", () => {
     game.setInput("a", 0, -1, Math.PI / 2); // turning north doesn't swing it
     game.tick(10_100, 0.05);
     expect(a.facing).toBe(Math.PI / 2);
+  });
+});
+
+// A round in a given mode with these players, past the countdown, everyone
+// put behind the wall in the top corridor, facing up into the edge, so nobody
+// is caught by accident.
+function playingMode(mode: Mode, ids: string[], h = hooks()) {
+  const game = new Game(h);
+  for (const id of ids) game.join(id, id.toUpperCase(), 0);
+  expect(game.setMode(ids[0], mode)).toBe(true);
+  expect(game.start(ids[0], 0)).toBe(true);
+  game.tick(10_000, 0.05);
+  expect(game.phase).toBe("playing");
+  game.maze = maze;
+  game.pickups = [];
+  game.zone = { x: maze.w / 2, y: maze.h / 2 };
+  ids.forEach((id, i) => Object.assign(game.players.get(id)!, { x: 7.5 + (i % 4), y: 1.5, facing: -Math.PI / 2 }));
+  return { game, h, p: (id: string) => game.players.get(id)! };
+}
+
+describe("the host picks the game mode", () => {
+  it("only the host can change the mode, and only in the lobby", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    expect(game.setMode("b", "teams")).toBe(false);
+    expect(game.setMode("a", "teams")).toBe(true);
+    expect(game.roster().mode).toBe("teams");
+    game.start("a", 0);
+    expect(game.setMode("a", "ffa")).toBe(false);
+  });
+
+  it("a free for all is everyone against everyone, nobody on a side", () => {
+    const { game } = playingMode("ffa", ["a", "b", "c"]);
+    expect(game.roster().players.every((p) => p.team === null)).toBe(true);
+  });
+});
+
+describe("teams: two sides, and the last side standing wins together", () => {
+  it("players are dealt into red and blue, as even as the numbers allow", () => {
+    const { game } = playingMode("teams", ["a", "b", "c", "d", "e"]);
+    const teams = game.roster().players.map((p) => p.team);
+    const red = teams.filter((t) => t === "red").length;
+    const blue = teams.filter((t) => t === "blue").length;
+    expect(red + blue).toBe(5);
+    expect(Math.abs(red - blue)).toBeLessThanOrEqual(1);
+  });
+
+  it("your torch on a teammate's back doesn't catch them", () => {
+    const { game, p, h } = playingMode("teams", ["a", "b", "c", "d"]);
+    const [x, y] = ["a", "b", "c", "d"].filter((id) => p(id).team === p("a").team);
+    Object.assign(p(x), { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(p(y), { x: 4.5, y: 2.5, facing: 0 });
+    game.tick(10_000, CATCH_SECONDS * 3);
+    expect(p(y).status).toBe("alive");
+    expect(h.catches).toEqual([]);
+  });
+
+  it("your torch on a rival's back catches them as usual", () => {
+    const { game, p, h } = playingMode("teams", ["a", "b", "c", "d"]);
+    const rival = ["b", "c", "d"].find((id) => p(id).team !== p("a").team)!;
+    Object.assign(p("a"), { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(p(rival), { x: 4.5, y: 2.5, facing: 0 });
+    game.tick(10_000, CATCH_SECONDS + 0.01);
+    expect(h.catches).toEqual([["a", rival]]);
+  });
+
+  it("once one side is all caught, the other side wins, caught teammates included", () => {
+    const { game, p, h } = playingMode("teams", ["a", "b", "c", "d"]);
+    const mine = ["a", "b", "c", "d"].filter((id) => p(id).team === p("a").team);
+    const theirs = ["a", "b", "c", "d"].filter((id) => p(id).team !== p("a").team);
+    p(mine[1]).status = "caught"; // one of a's side is already out
+    p(theirs[0]).status = "caught";
+    game.tick(10_000, 0.05);
+    expect(game.phase).toBe("playing"); // one of each side left: not over yet
+    p(theirs[1]).status = "caught";
+    game.tick(10_000, 0.05);
+    expect(game.phase).toBe("ended");
+    expect(game.round().winnerTeam).toBe(p("a").team);
+    expect(h.winners.at(-1)?.sort()).toEqual([...mine].sort());
+  });
+});
+
+describe("one v one: two play, the rest wait their turn", () => {
+  it("only the first two in line play; everyone else watches", () => {
+    const { p } = playingMode("duel", ["a", "b", "c"]);
+    expect(p("a").status).toBe("alive");
+    expect(p("b").status).toBe("alive");
+    expect(p("c").status).toBe("spectating");
+  });
+
+  it("the loser goes to the back of the line, and the next one steps up", () => {
+    const { game, p } = playingMode("duel", ["a", "b", "c"]);
+    Object.assign(p("a"), { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(p("b"), { x: 4.5, y: 2.5, facing: 0 });
+    game.tick(10_000, CATCH_SECONDS + 0.01);
+    expect(game.phase).toBe("ended");
+    expect(game.round().winner).toBe("A");
+    game.tick(10_000 + ENDED_MS + 1, 0.05);
+    expect(game.start("a", 20_000)).toBe(true);
+    expect(p("a").status).toBe("alive");
+    expect(p("c").status).toBe("alive");
+    expect(p("b").status).toBe("spectating");
+  });
+});
+
+describe("the record counts every way out", () => {
+  it("falling off the floor is kept as a fall, not a catch", () => {
+    const { game, a, b, h } = playing();
+    Object.assign(a, { x: 10.5, y: 3.5 });
+    Object.assign(b, { x: 1.5, y: 1.5 });
+    game.zone = { x: 10.5, y: 3.5 };
+    game.tick(10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS, 0.05);
+    expect(h.falls).toContain("b");
+    expect(h.catches).toEqual([]);
   });
 });
