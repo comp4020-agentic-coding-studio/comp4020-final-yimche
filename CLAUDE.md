@@ -69,12 +69,12 @@ app, and they are part of what gets marked.
 Carried over from crit 5 and assignment 2; it was dropped when this harness
 was adapted from crit 7's.
 
-- **Commit when a series of instructions is done.** After completing a request
-  (or a batch of them), commit the work before handing back, never leaving
-  finished work sitting uncommitted. Prefer small, logical commits with messages
-  that say what changed and why; reconstruct the honest build order when several
-  landed together. Never commit a red `pnpm check`. This is standing
-  authorization to commit.
+- **One commit per feature, made as each one is finished.** When a request has
+  numbered items, each item gets its own commit, made before starting the next
+  item, never saved up for the end. If two items touch the same file, stage by
+  hunk so each commit holds only its own item. Messages say what changed and
+  why. Never leave finished work uncommitted, and never commit a red
+  `pnpm check`. This is standing authorization to commit.
 - **Push is still yours.** Committing is automatic; pushing is a deliberate act
   left to Julian. This repo is already public, and a push to `main` deploys to
   Fly, so a push is a release.
