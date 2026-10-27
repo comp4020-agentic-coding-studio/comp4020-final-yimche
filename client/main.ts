@@ -3,6 +3,7 @@ import {
   BEAM_HALF_ANGLE,
   BEAM_RANGE,
   FLASH_MS,
+  FREEZE_MS,
   PLAYER_RADIUS,
   SPEED_MS,
   XRAY_MS,
@@ -24,6 +25,7 @@ interface Seen {
   cooldownMs: number;
   cooldownHeld: boolean;
   xray: boolean;
+  frozen: boolean;
 }
 interface State {
   phase: Phase;
@@ -41,6 +43,7 @@ interface State {
     item: Kind | null;
     speedMs: number;
     xrayMs: number;
+    frozenMs: number;
   };
   zone: { x: number; y: number; r: number; closesInMs: number } | null;
   others: Seen[];
@@ -78,7 +81,9 @@ const TEAM_NAMES: Record<Team, string> = { red: "Red", blue: "Blue" };
 // the same on every screen and from round to round.
 const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a", light: "255 236 196" };
 const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
-const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4" };
+const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4", freeze: "#bfeaff" };
+// frost: the pale blue a frozen player and their stuck beam are tinted with
+const ICE = "200 238 255";
 const TEAM_COLOURS: Record<Team, string> = { red: "#f08a6c", blue: "#6ea8f5" };
 // In teams, everyone wears their side's colour, so friend and rival read at a glance.
 function colourOf(id: string): string {
@@ -434,12 +439,12 @@ function frame(now: number): void {
 
   // other torches you can see
   for (const o of state.others) {
-    ctx.fillStyle = o.xray ? "rgb(170 150 255 / 0.16)" : `rgb(${NIGHT.light} / 0.14)`;
+    ctx.fillStyle = o.frozen ? `rgb(${ICE} / 0.24)` : o.xray ? "rgb(170 150 255 / 0.16)" : `rgb(${NIGHT.light} / 0.14)`;
     beam(ctx, o.x, o.y, o.facing, o.xray);
     ctx.fill();
   }
   if (playing && me) {
-    ctx.fillStyle = myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${NIGHT.light} / 0.3)`;
+    ctx.fillStyle = me.frozenMs > 0 ? `rgb(${ICE} / 0.36)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${NIGHT.light} / 0.3)`;
     beam(ctx, drawn.x, drawn.y, me.facing, myXray);
     ctx.fill();
   }
@@ -488,11 +493,13 @@ function frame(now: number): void {
   ctx.textAlign = "center";
   for (const o of state.others) {
     dot(o.x, o.y, o.facing, colourOf(o.id), nameOf(o.id));
+    if (o.frozen) frost(o.x, o.y, now);
     if (state.phase === "playing") shield(o.x, o.y, o.cooldownMs, o.cooldownHeld, now);
   }
   if (playing && me) {
     if (me.speedMs > 0) trail(drawn.x, drawn.y, me.facing);
     dot(drawn.x, drawn.y, me.facing, colourOf(myId), "you", me.lit);
+    if (me.frozenMs > 0) frost(drawn.x, drawn.y, now);
     if (state.phase === "playing") shield(drawn.x, drawn.y, me.cooldownMs, me.cooldownHeld, now);
   }
 
@@ -566,23 +573,26 @@ function tile(x: number, y: number, isWall: boolean, lip: boolean, depth: number
 }
 
 // The slot: what you're carrying, if anything. While a boost or an x-ray
-// torch runs, a bar in its colour drains along the bottom, and anything you
-// picked up meanwhile waits its turn.
-const NAMES: Record<Kind, string> = { speed: "Speed", xray: "X-ray", teleport: "Teleport" };
+// torch runs, or you're frozen, a bar in its colour drains along the bottom,
+// and anything you picked up meanwhile waits its turn.
+const NAMES: Record<Kind, string> = { speed: "Speed", xray: "X-ray", teleport: "Teleport", freeze: "Freeze" };
 function inventory(s: State): void {
   const slot = $<HTMLButtonElement>("slot");
   const show = s.phase === "playing" && s.me?.status === "alive";
   if (slot.hidden === show) slot.hidden = !show;
   if (!show || !s.me) return;
-  const { item, speedMs, xrayMs } = s.me;
+  const { item, speedMs, xrayMs, frozenMs } = s.me;
   const running = speedMs > 0 ? "speed" : xrayMs > 0 ? "xray" : null;
   const label = item ? (running ? `${NAMES[item]}, after this` : NAMES[item]) : running ? NAMES[running] : "Empty";
   if (slot.dataset.kind !== (item ?? running ?? "")) slot.dataset.kind = item ?? running ?? "";
   if ($("slot-label").textContent !== label) $("slot-label").textContent = label;
-  const usable = !!item && !running;
+  // a frozen player can't use what they carry until it wears off
+  const usable = !!item && !running && frozenMs <= 0;
   if (slot.disabled === usable) slot.disabled = !usable;
-  slot.style.setProperty("--left", String(running === "speed" ? speedMs / SPEED_MS : running === "xray" ? xrayMs / XRAY_MS : 0));
-  slot.style.setProperty("--running", running ? KIND_COLOURS[running] : "transparent");
+  // while frozen, the bar shows the thaw instead
+  const left = frozenMs > 0 ? frozenMs / FREEZE_MS : running === "speed" ? speedMs / SPEED_MS : running === "xray" ? xrayMs / XRAY_MS : 0;
+  slot.style.setProperty("--left", String(left));
+  slot.style.setProperty("--running", frozenMs > 0 ? KIND_COLOURS.freeze : running ? KIND_COLOURS[running] : "transparent");
 }
 
 function pickup(x: number, y: number, kind: Kind, now: number): void {
@@ -681,6 +691,34 @@ function dot(x: number, y: number, facing: number, colour: string, label: string
   ctx.fillText(label, sx, sy - r - 5);
 }
 
+// Frozen: the dot sealed in a block of ice, a hexagon with a bright rim and a
+// glint, so it reads apart from the stun ring, which is a plain circle.
+function frost(x: number, y: number, now: number): void {
+  const sx = offX + x * scale;
+  const sy = offY + y * scale;
+  const r = PLAYER_RADIUS * scale * 1.35;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI) / 3 + Math.PI / 6;
+    ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fillStyle = `rgb(${ICE} / 0.5)`;
+  ctx.fill();
+  ctx.strokeStyle = `rgb(${ICE} / ${0.85 + 0.15 * Math.sin(now / 300)})`;
+  ctx.lineWidth = Math.max(2, scale * 0.07);
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.lineJoin = "miter";
+  // a glint across the top left face
+  ctx.strokeStyle = "rgb(255 255 255 / 0.85)";
+  ctx.lineWidth = Math.max(1.5, scale * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(sx - r * 0.55, sy - r * 0.15);
+  ctx.lineTo(sx - r * 0.15, sy - r * 0.55);
+  ctx.stroke();
+}
+
 // A ring while a head-on bump or stand-off shields a pair from catching each other: steady
 // while a torch holds the stun, then flashing once the countdown runs, faster
 // in its last second so the end is no surprise.
@@ -718,6 +756,7 @@ function bannerText(s: State): string {
       if (s.me?.status === "spectating" && mode === "duel") return "Watching the duel; you're up when it's your turn";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
       if (s.me?.lit) return "You're in someone's light. Move!";
+      if (s.me?.frozenMs) return `Frozen! ${Math.ceil(s.me.frozenMs / 1000)}s`;
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
       if (s.me?.xrayMs) return "X-ray torch: you see through walls, but can only catch in the open";

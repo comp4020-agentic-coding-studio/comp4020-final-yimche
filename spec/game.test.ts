@@ -7,6 +7,7 @@ import {
   CLOSE_TAKES_MS,
   FLASH_EVERY_MS,
   FLASH_MS,
+  FREEZE_MS,
   SPEED,
   SPEED_MS,
   TELEPORT_HALF_ANGLE,
@@ -440,6 +441,118 @@ describe("powerups take your one slot until you use them", () => {
     expect(game.use("a", 10_000)).toBe(true);
     expect(Math.hypot(a.x - 28.5, a.y - 15.5)).toBeGreaterThanOrEqual(TELEPORT_MIN);
   });
+
+  it("a freeze stops whoever your torch is on from moving or turning for five seconds, then they can again", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 }); // a looks east at b
+    Object.assign(b, { x: 5.5, y: 2.5, facing: Math.PI / 2 }); // b looks south, side on to a
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(game.viewFor("a", 10_000).me?.item).toBe(null);
+    a.facing = -Math.PI / 2; // a looks away, so nobody gets caught meanwhile
+    game.setInput("b", 1, 0, 0); // b tries to walk east and turn east
+    for (let t = 10_050; t < 10_000 + FREEZE_MS; t += 250) game.tick(t, 0.05);
+    expect(b.x).toBe(5.5);
+    expect(b.y).toBe(2.5);
+    expect(b.facing).toBe(Math.PI / 2); // the torch stays held where it was
+    for (let i = 0; i < 10; i++) game.tick(10_000 + FREEZE_MS + 1 + i * 50, 0.05);
+    expect(b.x).toBeGreaterThan(5.5);
+    expect(b.facing).toBe(0);
+  });
+
+  it("a freeze needs someone in your beam; with nobody there it stays in your slot", () => {
+    const { game, a } = playing(); // a faces a wall, b is far off
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(false);
+    expect(game.viewFor("a", 10_000).me?.item).toBe("freeze");
+    expect(game.viewFor("b", 10_000).me?.frozenMs).toBe(0);
+  });
+
+  it("a freeze doesn't reach through walls", () => {
+    const { game, a } = playing();
+    Object.assign(a, { x: 4.5, y: 1.5, facing: 0 });
+    Object.assign(game.players.get("b")!, { x: 7.5, y: 1.5, facing: 0 }); // just behind the wall
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(false);
+    expect(game.viewFor("a", 10_000).me?.item).toBe("freeze");
+    expect(game.viewFor("b", 10_000).me?.frozenMs).toBe(0);
+  });
+
+  it("someone you freeze with their back to you can't turn round, so holding your beam still catches them", () => {
+    const { game, a, b, h } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: 0 }); // back to a's torch
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    game.setInput("b", 0, 0, Math.PI); // b tries to spin round and face a
+    game.tick(10_050, CATCH_SECONDS + 0.01);
+    expect(b.status).toBe("caught");
+    expect(h.catches).toEqual([["a", "b"]]);
+  });
+
+  it("a frozen player's torch still catches anyone who turns their back in it", () => {
+    const { game, a, b, h } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 }); // face to face with b
+    Object.assign(b, { x: 5.5, y: 2.5, facing: Math.PI });
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    game.setInput("a", 0, 0, Math.PI); // a turns away, back into b's fixed beam
+    game.setInput("b", 0, 0, -Math.PI / 2); // b can't look away
+    game.tick(10_050, CATCH_SECONDS + 0.01);
+    expect(a.status).toBe("caught");
+    expect(h.catches).toEqual([["b", "a"]]);
+  });
+
+  it("a frozen player can't use their own powerup until the freeze wears off", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: Math.PI });
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    b.item = "speed";
+    expect(game.use("b", 10_000 + FREEZE_MS - 1)).toBe(false);
+    expect(game.viewFor("b", 10_000 + FREEZE_MS - 1).me?.item).toBe("speed"); // still kept
+    expect(game.use("b", 10_000 + FREEZE_MS + 1)).toBe(true);
+  });
+
+  it("a freeze is over in an instant for you, so your next powerup is ready straight away", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: Math.PI });
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    a.item = "speed";
+    expect(game.use("a", 10_000)).toBe(true);
+  });
+
+  it("freezing someone who's already frozen starts their five seconds over", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: Math.PI });
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    a.item = "freeze";
+    expect(game.use("a", 13_000)).toBe(true);
+    expect(game.viewFor("b", 13_000).me?.frozenMs).toBe(FREEZE_MS);
+    expect(game.viewFor("b", 10_000 + FREEZE_MS + 1).me?.frozenMs).toBeGreaterThan(0);
+  });
+
+  it("you can see someone's frozen only while you can see them, and your own freeze counts down", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: Math.PI });
+    expect(game.viewFor("a", 10_000).others.map((o) => o.frozen)).toEqual([false]);
+    a.item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(game.viewFor("a", 10_000).others.map((o) => [o.id, o.frozen])).toEqual([["b", true]]);
+    a.facing = Math.PI; // a looks away: b is in the dark again
+    expect(game.viewFor("a", 10_000).others).toEqual([]);
+    expect(game.viewFor("b", 10_000).me?.frozenMs).toBe(FREEZE_MS);
+    expect(game.viewFor("b", 12_000).me?.frozenMs).toBe(FREEZE_MS - 2000);
+    expect(game.viewFor("b", 10_000 + FREEZE_MS + 1).me?.frozenMs).toBe(0);
+    a.facing = 0;
+    expect(game.viewFor("a", 10_000 + FREEZE_MS + 1).others.map((o) => o.frozen)).toEqual([false]);
+  });
 });
 
 describe("the dark closes in so a round can't drag on", () => {
@@ -589,6 +702,30 @@ describe("teams: two sides, and the last side standing wins together", () => {
     Object.assign(p(rival), { x: 4.5, y: 2.5, facing: 0 });
     game.tick(10_000, CATCH_SECONDS + 0.01);
     expect(h.catches).toEqual([["a", rival]]);
+  });
+
+  it("a freeze never stops a teammate, only the rivals in your beam", () => {
+    const { game, p } = playingMode("teams", ["a", "b", "c", "d"]);
+    const mate = ["b", "c", "d"].find((id) => p(id).team === p("a").team)!;
+    const rival = ["b", "c", "d"].find((id) => p(id).team !== p("a").team)!;
+    Object.assign(p("a"), { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(p(mate), { x: 4.5, y: 2.5, facing: 0 });
+    Object.assign(p(rival), { x: 6.5, y: 2.5, facing: Math.PI });
+    p("a").item = "freeze";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(game.viewFor(mate, 10_000).me?.frozenMs).toBe(0);
+    expect(game.viewFor(rival, 10_000).me?.frozenMs).toBe(FREEZE_MS);
+  });
+
+  it("with only a teammate in your beam, a freeze stays in your slot", () => {
+    const { game, p } = playingMode("teams", ["a", "b", "c", "d"]);
+    const mate = ["b", "c", "d"].find((id) => p(id).team === p("a").team)!;
+    Object.assign(p("a"), { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(p(mate), { x: 4.5, y: 2.5, facing: 0 });
+    p("a").item = "freeze";
+    expect(game.use("a", 10_000)).toBe(false);
+    expect(game.viewFor("a", 10_000).me?.item).toBe("freeze");
+    expect(game.viewFor(mate, 10_000).me?.frozenMs).toBe(0);
   });
 
   it("once one side is all caught, the other side wins, caught teammates included", () => {

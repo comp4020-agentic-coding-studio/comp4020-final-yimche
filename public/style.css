@@ -17,6 +17,7 @@
   --speed: #2f9e6c;
   --xray: #7d63cf;
   --teleport: #d45a8d;
+  --freeze: #5cb8dc;
   --shadow: 0 1px 2px rgb(29 34 48 / 0.06), 0 4px 16px rgb(29 34 48 / 0.06);
   font-family: "Inter", system-ui, sans-serif;
   font-size: 15px;
@@ -197,6 +198,7 @@ canvas:focus-visible {
 .slot[data-kind="speed"] { --c: var(--speed); }
 .slot[data-kind="xray"] { --c: var(--xray); }
 .slot[data-kind="teleport"] { --c: var(--teleport); }
+.slot[data-kind="freeze"] { --c: var(--freeze); }
 
 .slot:not([data-kind=""]) {
   border-color: var(--c);
@@ -229,7 +231,8 @@ canvas:focus-visible {
 
 .slot[data-kind="speed"] svg[data-kind="speed"],
 .slot[data-kind="xray"] svg[data-kind="xray"],
-.slot[data-kind="teleport"] svg[data-kind="teleport"] {
+.slot[data-kind="teleport"] svg[data-kind="teleport"],
+.slot[data-kind="freeze"] svg[data-kind="freeze"] {
   display: block;
 }
 

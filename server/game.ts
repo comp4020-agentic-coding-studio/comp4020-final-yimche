@@ -7,6 +7,7 @@ import {
   COLLIDE_DISTANCE,
   FLASH_EVERY_MS,
   FLASH_MS,
+  FREEZE_MS,
   KINDS,
   PICKUP_RADIUS,
   SPEED,
@@ -73,6 +74,8 @@ export interface Player extends Body {
   item: Kind | null;
   speedUntil: number;
   xrayUntil: number;
+  // when a rival's freeze on this player wears off
+  frozenUntil: number;
 }
 
 export interface Pickup {
@@ -161,6 +164,7 @@ export class Game {
         item: null,
         speedUntil: 0,
         xrayUntil: 0,
+        frozenUntil: 0,
       };
       this.players.set(id, p);
       if (this.phase === "countdown" && this.mode === "duel") p.status = "spectating";
@@ -221,8 +225,13 @@ export class Game {
   // starting, stopping and turning a corner are smooth instead of snapping.
   // The torch points wherever you aim; walking only turns it when there's no
   // aim at all, as on a phone, where there's no cursor to point with.
+  // A frozen player stands still with the torch held where it was.
   private walk(now: number, dt: number): void {
     for (const p of this.alive()) {
+      if (p.frozenUntil > now) {
+        p.vx = p.vy = 0;
+        continue;
+      }
       const speed = SPEED * (p.speedUntil > now ? SPEED_BOOST : 1);
       const k = Math.min(1, dt * ACCELERATION);
       p.vx += (p.input.dx * speed - p.vx) * k;
@@ -309,11 +318,24 @@ export class Game {
   // Uses the powerup you're carrying, mid-round only, and empties the slot. A
   // speed boost and an x-ray torch last a few seconds, and the next powerup
   // can't be used until the running one wears off; a teleport drops you in a
-  // random room ahead of where you face. Returns whether it was used.
+  // random room ahead of where you face. A freeze stops every rival in your
+  // beam right now, walls in the way, and with nobody there it isn't spent.
+  // Nothing can be used while you're frozen yourself. Returns whether it was used.
   use(id: string, now: number): boolean {
     const p = this.players.get(id);
     if (!p || p.status !== "alive" || this.phase !== "playing" || !p.item) return false;
-    if (p.speedUntil > now || p.xrayUntil > now) return false;
+    if (p.speedUntil > now || p.xrayUntil > now || p.frozenUntil > now) return false;
+    if (p.item === "freeze") {
+      const hit = this.alive().filter((o) => o !== p && rivals(p, o) && inBeam(this.maze, p, o));
+      if (hit.length === 0) return false;
+      // freezing someone already frozen starts their time over
+      for (const o of hit) {
+        o.frozenUntil = now + FREEZE_MS;
+        o.vx = o.vy = 0;
+      }
+      p.item = null;
+      return true;
+    }
     const kind = p.item;
     p.item = null;
     if (kind === "speed") p.speedUntil = now + SPEED_MS;
@@ -561,6 +583,7 @@ export class Game {
       p.item = null;
       p.speedUntil = 0;
       p.xrayUntil = 0;
+      p.frozenUntil = 0;
       p.vx = p.vy = 0;
     }
     this.pickups = [];
@@ -632,6 +655,7 @@ export class Game {
         item: me.item,
         speedMs: Math.max(0, me.speedUntil - now),
         xrayMs: Math.max(0, me.xrayUntil - now),
+        frozenMs: Math.max(0, me.frozenUntil - now),
       },
       zone:
         this.phase === "playing"
@@ -646,6 +670,7 @@ export class Game {
         cooldownMs: cooldownMs(p),
         cooldownHeld: !!me?.cooldownHeld.has(p.id),
         xray: xray(p),
+        frozen: p.frozenUntil > now,
       })),
       pickups: this.pickups,
     };

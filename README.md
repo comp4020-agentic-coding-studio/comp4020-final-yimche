@@ -31,7 +31,9 @@ still in the dark wins the round.
    You speed up and slow down smoothly rather than snapping. Your torch points
    at the mouse, whichever way you walk, so you can back away from someone
    with your light still on them. On a phone, with no mouse, it points where
-   you walk.
+   you walk. The game fills the screen; the room code, the players still in,
+   the catches, your record and the board are in the menu, opened with the
+   button in the top left or <kbd>Esc</kbd>.
 5. You can only see what your torch lights, plus a small circle around you.
    Keep your beam on someone from behind or from the side and they're out.
    Only the quarter in front of them, 45° either side of where they're
@@ -57,6 +59,13 @@ still in the dark wins the round.
    - **Teleport**: drops you in a random room somewhere ahead of where
      you're facing, a few rooms away, so you steer it by turning first. It
      breaks any beam that was on your back.
+   - **Freeze**: point your torch at someone and use it, and everyone your
+     beam is on is stuck for five seconds, unable to move or turn their torch.
+     It doesn't reach through walls and never freezes a teammate. A frozen
+     player can still be caught, and their beam still catches whoever walks
+     into it. With nobody in your beam it doesn't go off and stays in your
+     slot. While you're frozen you can't use your own powerup until it wears
+     off.
 8. The dark closes in so a round can't drag on. The maze is drawn as a grid
    of tiles, and a minute in they start falling away into the dark, in
    scattered bits from the edges toward one room near the middle, until only
