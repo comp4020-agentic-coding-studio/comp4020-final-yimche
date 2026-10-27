@@ -81,6 +81,10 @@ still in the dark wins the round.
      time while you slip away. Only you see it for what it is, as a faint
      ghost with a dashed ring. Using another replaces it, and it goes if
      you're out.
+   - **Blackout**: every rival's torch reaches only half as far for four
+     seconds, for seeing and for catching alike, so they can only catch up
+     close. Yours keeps its full reach, and teammates' torches are left
+     alone. Whoever's dimmed sees their beam shrink and is told why.
 8. The dark closes in so a round can't drag on. The maze is drawn as a grid
    of tiles, and a minute in they start falling away into the dark, in
    scattered bits from the edges toward one room near the middle, until only

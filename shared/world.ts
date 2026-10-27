@@ -18,9 +18,10 @@ export const FLASH_MS = 1000; // how long a flash takes to fade back to dark
 // until you choose to use it. You carry one at a time: walking over another
 // swaps it in, and the old one is gone. A freeze stops every rival your beam
 // is on where they stand, facing locked, for a few seconds. A decoy leaves a
-// still copy of you behind that looks like you to everyone else.
-export type Kind = "speed" | "xray" | "teleport" | "freeze" | "decoy";
-export const KINDS: Kind[] = ["speed", "xray", "teleport", "freeze", "decoy"];
+// still copy of you behind that looks like you to everyone else. A blackout
+// shortens every rival's torch for a few seconds.
+export type Kind = "speed" | "xray" | "teleport" | "freeze" | "decoy" | "blackout";
+export const KINDS: Kind[] = ["speed", "xray", "teleport", "freeze", "decoy", "blackout"];
 export const PICKUP_RADIUS = 0.55; // how close you have to walk to pick one up
 export const SPEED_BOOST = 1.6; // speed multiplier while a boost lasts
 export const SPEED_MS = 4000;
@@ -32,6 +33,8 @@ export const TELEPORT_MIN = 4;
 export const TELEPORT_MAX = 10;
 export const FREEZE_MS = 5000;
 export const DECOY_MS = 8000;
+export const BLACKOUT_MS = 4000;
+export const BLACKOUT_REACH = 0.5; // a dimmed torch reaches this much of the way
 
 // The dark closes in so a round can't drag on: a minute in, the floor starts
 // falling away from the edges toward one room, and over the next minute it
@@ -143,10 +146,11 @@ export function isBehind(target: Body, attacker: Body): boolean {
 
 // Is b inside a's torch beam? This is visibility, not a catch: a beam can land
 // on someone's front and light them up without catching them (see isBehind).
-// An x-ray torch ignores walls, which only ever widens what you see.
-export function inBeam(maze: Maze, a: Body, b: Body, xray = false): boolean {
+// An x-ray torch ignores walls, which only ever widens what you see; a
+// dimmed torch reaches only `range`, which narrows it.
+export function inBeam(maze: Maze, a: Body, b: Body, xray = false, range = BEAM_RANGE): boolean {
   const dist = Math.hypot(b.x - a.x, b.y - a.y);
-  if (dist > BEAM_RANGE + PLAYER_RADIUS) return false;
+  if (dist > range + PLAYER_RADIUS) return false;
   // allow the beam to clip the edge of a body, not just its centre
   const slack = dist > 0 ? Math.atan(PLAYER_RADIUS / dist) : Math.PI;
   if (angleBetween(Math.atan2(b.y - a.y, b.x - a.x), a.facing) > BEAM_HALF_ANGLE + slack) return false;
@@ -154,10 +158,10 @@ export function inBeam(maze: Maze, a: Body, b: Body, xray = false): boolean {
 }
 
 // Can a see b at all: in the beam, or close enough to make out in the dark.
-export function canSee(maze: Maze, a: Body, b: Body, xray = false): boolean {
+export function canSee(maze: Maze, a: Body, b: Body, xray = false, range = BEAM_RANGE): boolean {
   const dist = Math.hypot(b.x - a.x, b.y - a.y);
   if (dist <= AURA_RADIUS + PLAYER_RADIUS && lineOfSight(maze, a, b, dist)) return true;
-  return inBeam(maze, a, b, xray);
+  return inBeam(maze, a, b, xray, range);
 }
 
 function blocked(maze: Maze, x: number, y: number): boolean {

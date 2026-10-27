@@ -19,6 +19,7 @@
   --teleport: #d45a8d;
   --freeze: #5cb8dc;
   --decoy: #d9a03c;
+  --blackout: #e8574e;
   --shadow: 0 1px 2px rgb(29 34 48 / 0.06), 0 4px 16px rgb(29 34 48 / 0.06);
   font-family: "Inter", system-ui, sans-serif;
   font-size: 15px;
@@ -232,6 +233,7 @@ canvas:focus-visible {
 .slot[data-kind="teleport"] { --c: var(--teleport); }
 .slot[data-kind="freeze"] { --c: var(--freeze); }
 .slot[data-kind="decoy"] { --c: var(--decoy); }
+.slot[data-kind="blackout"] { --c: var(--blackout); }
 
 .slot:not([data-kind=""]) {
   border-color: var(--c);
@@ -266,7 +268,8 @@ canvas:focus-visible {
 .slot[data-kind="xray"] svg[data-kind="xray"],
 .slot[data-kind="teleport"] svg[data-kind="teleport"],
 .slot[data-kind="freeze"] svg[data-kind="freeze"],
-.slot[data-kind="decoy"] svg[data-kind="decoy"] {
+.slot[data-kind="decoy"] svg[data-kind="decoy"],
+.slot[data-kind="blackout"] svg[data-kind="blackout"] {
   display: block;
 }
 
@@ -434,6 +437,7 @@ canvas:focus-visible {
 .help .teleport { color: #ec6ea4; }
 .help .freeze { color: var(--freeze); }
 .help .decoy { color: var(--decoy); }
+.help .blackout { color: var(--blackout); }
 
 .help .more {
   margin: 1rem 0 0;

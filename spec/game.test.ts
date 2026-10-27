@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { AWAY_GRACE_MS, ENDED_MS, Game, type Hooks, type Mode } from "../server/game.ts";
 import {
+  BEAM_RANGE,
+  BLACKOUT_MS,
   CATCH_COOLDOWN_SECONDS,
   CATCH_SECONDS,
   CLOSE_AFTER_MS,
@@ -667,6 +669,69 @@ describe("a decoy leaves a copy of you behind", () => {
     game.tick(10_050, CATCH_SECONDS + 0.01);
     expect(a.status).toBe("caught");
     expect(game.viewFor("b", 10_050).others).toEqual([]);
+  });
+});
+
+describe("a blackout dims every other torch", () => {
+  it("a blackout halves everyone else's torch for four seconds, so they can't catch you from far off", () => {
+    const { game, a, b, h } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 7.5, y: 2.5, facing: 0 }); // five tiles off, back to a's torch
+    expect(game.viewFor("a", 10_000).others.map((o) => o.id)).toEqual(["b"]);
+    b.item = "blackout";
+    expect(game.use("b", 10_000)).toBe(true);
+    expect(game.viewFor("b", 10_000).me?.item).toBe(null);
+    expect(game.viewFor("a", 10_000).others).toEqual([]); // out of a's shortened reach
+    expect(game.viewFor("a", 10_000).me?.dimmedMs).toBe(BLACKOUT_MS);
+    game.setInput("a", 0, 0, 0);
+    game.setInput("b", 0, 0, 0);
+    for (let t = 10_050; t < 10_000 + BLACKOUT_MS; t += 250) game.tick(t, 0.25);
+    expect(b.status).toBe("alive");
+    expect(h.catches).toEqual([]);
+    game.tick(10_000 + BLACKOUT_MS + 1, CATCH_SECONDS + 0.01); // full reach again
+    expect(b.status).toBe("caught");
+  });
+
+  it("a dimmed torch still catches up close", () => {
+    const { game, a, b, h } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 4.5, y: 2.5, facing: 0 }); // two tiles off, inside half the reach
+    expect(2).toBeLessThan(BEAM_RANGE / 2);
+    b.item = "blackout";
+    expect(game.use("b", 10_000)).toBe(true);
+    game.tick(10_050, CATCH_SECONDS + 0.01);
+    expect(b.status).toBe("caught");
+    expect(h.catches).toEqual([["a", "b"]]);
+  });
+
+  it("your own torch keeps its full reach through your blackout", () => {
+    const { game, a, b, h } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 7.5, y: 2.5, facing: 0 });
+    a.item = "blackout";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(game.viewFor("a", 10_000).me?.dimmedMs).toBe(0);
+    expect(game.viewFor("a", 10_000).others.map((o) => [o.id, o.dimmed])).toEqual([["b", true]]);
+    game.tick(10_050, CATCH_SECONDS + 0.01);
+    expect(h.catches).toEqual([["a", "b"]]);
+  });
+
+  it("a blackout never dims a teammate's torch", () => {
+    const { game, p } = playingMode("teams", ["a", "b", "c", "d"]);
+    const mate = ["b", "c", "d"].find((id) => p(id).team === p("a").team)!;
+    const rival = ["b", "c", "d"].find((id) => p(id).team !== p("a").team)!;
+    p("a").item = "blackout";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(game.viewFor(mate, 10_000).me?.dimmedMs).toBe(0);
+    expect(game.viewFor(rival, 10_000).me?.dimmedMs).toBe(BLACKOUT_MS);
+  });
+
+  it("a blackout is over in an instant for you, so your next powerup is ready straight away", () => {
+    const { game, a } = playing();
+    a.item = "blackout";
+    expect(game.use("a", 10_000)).toBe(true);
+    a.item = "speed";
+    expect(game.use("a", 10_000)).toBe(true);
   });
 });
 

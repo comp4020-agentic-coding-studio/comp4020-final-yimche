@@ -1,5 +1,8 @@
 import { generateMaze, mazeCells, rng } from "./maze.ts";
 import {
+  BEAM_RANGE,
+  BLACKOUT_MS,
+  BLACKOUT_REACH,
   CATCH_COOLDOWN_SECONDS,
   ACCELERATION,
   CATCH_SECONDS,
@@ -79,6 +82,8 @@ export interface Player extends Body {
   frozenUntil: number;
   // a still copy of this player left behind, until it fades; nothing can catch it
   decoy: (Body & { until: number }) | null;
+  // when a rival's blackout on this player's torch wears off
+  dimmedUntil: number;
 }
 
 export interface Pickup {
@@ -103,6 +108,10 @@ export interface CatchEvent {
 
 // Whether one may catch (or be stunned by) the other: anyone, except your own side.
 const rivals = (a: Player, b: Player) => a.team === null || a.team !== b.team;
+
+// How far a player's torch reaches now: the whole way, or half while a
+// rival's blackout dims it. Seeing, catching, stand-offs and freezes all use it.
+const reach = (p: Player, now: number) => (p.dimmedUntil > now ? BEAM_RANGE * BLACKOUT_REACH : BEAM_RANGE);
 
 export class Game {
   phase: Phase = "waiting";
@@ -169,6 +178,7 @@ export class Game {
         xrayUntil: 0,
         frozenUntil: 0,
         decoy: null,
+        dimmedUntil: 0,
       };
       this.players.set(id, p);
       if (this.phase === "countdown" && this.mode === "duel") p.status = "spectating";
@@ -335,13 +345,15 @@ export class Game {
   // beam right now, walls in the way, and with nobody there it isn't spent.
   // A decoy is a still copy of you where you stand, facing where you face;
   // like a freeze it's over in an instant for you, and a new one replaces the
-  // old. Nothing can be used while you're frozen yourself. Returns whether it was used.
+  // old. A blackout dims every rival's torch to half its reach for a few
+  // seconds, and is over in an instant for you too. Nothing can be used while
+  // you're frozen yourself. Returns whether it was used.
   use(id: string, now: number): boolean {
     const p = this.players.get(id);
     if (!p || p.status !== "alive" || this.phase !== "playing" || !p.item) return false;
     if (p.speedUntil > now || p.xrayUntil > now || p.frozenUntil > now) return false;
     if (p.item === "freeze") {
-      const hit = this.alive().filter((o) => o !== p && rivals(p, o) && inBeam(this.maze, p, o));
+      const hit = this.alive().filter((o) => o !== p && rivals(p, o) && inBeam(this.maze, p, o, false, reach(p, now)));
       if (hit.length === 0) return false;
       // freezing someone already frozen starts their time over
       for (const o of hit) {
@@ -355,6 +367,10 @@ export class Game {
     p.item = null;
     if (kind === "decoy") {
       p.decoy = { x: p.x, y: p.y, facing: p.facing, until: now + DECOY_MS };
+      return true;
+    }
+    if (kind === "blackout") {
+      for (const o of this.alive()) if (o !== p && rivals(p, o)) o.dimmedUntil = now + BLACKOUT_MS;
       return true;
     }
     if (kind === "speed") p.speedUntil = now + SPEED_MS;
@@ -442,13 +458,14 @@ export class Game {
           Math.hypot(a.x - b.x, a.y - b.y) <= COLLIDE_DISTANCE &&
           !isBehind(a, b) &&
           !isBehind(b, a); // one of them had the other's back
-        const bumped = touching || (inBeam(this.maze, a, b) && inBeam(this.maze, b, a));
+        const lights = (x: Player, y: Player) => inBeam(this.maze, x, y, false, reach(x, now));
+        const bumped = touching || (lights(a, b) && lights(b, a));
         if (bumped) {
           a.cooldownHeld.add(b.id);
           b.cooldownHeld.add(a.id);
         }
         if (!a.cooldownHeld.has(b.id)) continue;
-        if (!inBeam(this.maze, a, b) && !inBeam(this.maze, b, a)) {
+        if (!lights(a, b) && !lights(b, a)) {
           // the light's off: let the countdown run, and don't hold again until they meet again
           a.cooldownHeld.delete(b.id);
           b.cooldownHeld.delete(a.id);
@@ -464,7 +481,7 @@ export class Game {
       for (const target of alive) {
         if (seeker === target || !rivals(seeker, target)) continue;
         const catchable =
-          inBeam(this.maze, seeker, target) &&
+          inBeam(this.maze, seeker, target, false, reach(seeker, now)) &&
           isBehind(target, seeker) &&
           (target.cooldownUntil.get(seeker.id) ?? 0) <= now;
         if (!catchable) {
@@ -604,6 +621,7 @@ export class Game {
       p.xrayUntil = 0;
       p.frozenUntil = 0;
       p.decoy = null;
+      p.dimmedUntil = 0;
       p.vx = p.vy = 0;
     }
     this.pickups = [];
@@ -654,7 +672,7 @@ export class Game {
       (p) =>
         p.id !== id &&
         p.status === "alive" &&
-        (seesAll || canSee(this.maze, me, p, xray(me))),
+        (seesAll || canSee(this.maze, me, p, xray(me), reach(me, now))),
     );
     // A decoy is sent exactly as its owner would be, under their id, with their
     // shield and frost, so nothing tells it apart; the dark hides it the same
@@ -662,7 +680,7 @@ export class Game {
     const decoys = [...this.players.values()]
       .filter((p) => p.id !== id && p.status === "alive" && p.decoy && p.decoy.until > now)
       .map((p) => ({ owner: p, body: p.decoy! }))
-      .filter(({ body }) => seesAll || canSee(this.maze, me, body, xray(me)));
+      .filter(({ body }) => seesAll || canSee(this.maze, me, body, xray(me), reach(me, now)));
     // how long a bump or stand-off with each player still shields the pair, so both can see it
     const cooldownMs = (p: Player) => (me ? Math.max(0, (me.cooldownUntil.get(p.id) ?? 0) - now) : 0);
     const seen = (p: Player, body: Body) => ({ id: p.id, x: body.x, y: body.y, facing: body.facing,
@@ -670,6 +688,7 @@ export class Game {
       cooldownHeld: !!me?.cooldownHeld.has(p.id),
       xray: xray(p),
       frozen: p.frozenUntil > now,
+      dimmed: p.dimmedUntil > now,
     });
     return {
       t: "state" as const,
@@ -689,6 +708,7 @@ export class Game {
         speedMs: Math.max(0, me.speedUntil - now),
         xrayMs: Math.max(0, me.xrayUntil - now),
         frozenMs: Math.max(0, me.frozenUntil - now),
+        dimmedMs: Math.max(0, me.dimmedUntil - now),
         // where your own decoy stands, which only you are told
         decoy:
           me.decoy && me.decoy.until > now && me.status === "alive"

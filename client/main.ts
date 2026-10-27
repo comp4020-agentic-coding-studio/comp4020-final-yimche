@@ -2,6 +2,7 @@ import {
   AURA_RADIUS,
   BEAM_HALF_ANGLE,
   BEAM_RANGE,
+  BLACKOUT_REACH,
   FLASH_MS,
   FREEZE_MS,
   PLAYER_RADIUS,
@@ -26,6 +27,7 @@ interface Seen {
   cooldownHeld: boolean;
   xray: boolean;
   frozen: boolean;
+  dimmed: boolean;
 }
 interface State {
   phase: Phase;
@@ -44,6 +46,7 @@ interface State {
     speedMs: number;
     xrayMs: number;
     frozenMs: number;
+    dimmedMs: number;
     decoy: { x: number; y: number; facing: number; ms: number } | null;
   };
   zone: { x: number; y: number; r: number; closesInMs: number } | null;
@@ -82,7 +85,7 @@ const TEAM_NAMES: Record<Team, string> = { red: "Red", blue: "Blue" };
 // the same on every screen and from round to round.
 const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a", light: "255 236 196" };
 const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
-const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4", freeze: "#bfeaff", decoy: "#e8b04a" };
+const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4", freeze: "#bfeaff", decoy: "#e8b04a", blackout: "#e8574e" };
 // frost: the pale blue a frozen player and their stuck beam are tinted with
 const ICE = "200 238 255";
 const TEAM_COLOURS: Record<Team, string> = { red: "#f08a6c", blue: "#6ea8f5" };
@@ -400,14 +403,16 @@ function toScreen(x: number, y: number): [number, number] {
 }
 
 // The lit part of a beam, cut short wherever a wall stops it, unless it's an
-// x-ray torch, which goes straight through.
-function beam(c: CanvasRenderingContext2D, x: number, y: number, facing: number, xray = false): void {
+// x-ray torch, which goes straight through. A torch dimmed by a blackout
+// reaches half as far, the same reach the server judges it by.
+function beam(c: CanvasRenderingContext2D, x: number, y: number, facing: number, xray = false, dimmed = false): void {
+  const range = dimmed ? BEAM_RANGE * BLACKOUT_REACH : BEAM_RANGE;
   const steps = 48;
   c.beginPath();
   c.moveTo(offX + x * scale, offY + y * scale);
   for (let i = 0; i <= steps; i++) {
     const a = facing - BEAM_HALF_ANGLE + (2 * BEAM_HALF_ANGLE * i) / steps;
-    const d = xray ? BEAM_RANGE : castRay(maze, x, y, a, BEAM_RANGE);
+    const d = xray ? range : castRay(maze, x, y, a, range);
     c.lineTo(offX + (x + Math.cos(a) * d) * scale, offY + (y + Math.sin(a) * d) * scale);
   }
   c.closePath();
@@ -442,16 +447,17 @@ function frame(now: number): void {
 
   const playing = me?.status === "alive";
   const myXray = !!me && me.xrayMs > 0;
+  const myDim = !!me && me.dimmedMs > 0;
 
   // other torches you can see
   for (const o of state.others) {
     ctx.fillStyle = o.frozen ? `rgb(${ICE} / 0.24)` : o.xray ? "rgb(170 150 255 / 0.16)" : `rgb(${NIGHT.light} / 0.14)`;
-    beam(ctx, o.x, o.y, o.facing, o.xray);
+    beam(ctx, o.x, o.y, o.facing, o.xray, o.dimmed);
     ctx.fill();
   }
   if (playing && me) {
     ctx.fillStyle = me.frozenMs > 0 ? `rgb(${ICE} / 0.36)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${NIGHT.light} / 0.3)`;
-    beam(ctx, drawn.x, drawn.y, me.facing, myXray);
+    beam(ctx, drawn.x, drawn.y, me.facing, myXray, myDim);
     ctx.fill();
   }
 
@@ -467,7 +473,7 @@ function frame(now: number): void {
     fctx.fillRect(0, 0, fog.width, fog.height);
     fctx.globalCompositeOperation = "destination-out";
     fctx.fillStyle = "#000";
-    beam(fctx, drawn.x, drawn.y, me.facing, myXray);
+    beam(fctx, drawn.x, drawn.y, me.facing, myXray, myDim);
     fctx.fill();
     fctx.beginPath();
     fctx.arc(offX + drawn.x * scale, offY + drawn.y * scale, AURA_RADIUS * scale, 0, Math.PI * 2);
@@ -584,7 +590,7 @@ function tile(x: number, y: number, isWall: boolean, lip: boolean, depth: number
 // The slot: what you're carrying, if anything. While a boost or an x-ray
 // torch runs, or you're frozen, a bar in its colour drains along the bottom,
 // and anything you picked up meanwhile waits its turn.
-const NAMES: Record<Kind, string> = { speed: "Speed", xray: "X-ray", teleport: "Teleport", freeze: "Freeze", decoy: "Decoy" };
+const NAMES: Record<Kind, string> = { speed: "Speed", xray: "X-ray", teleport: "Teleport", freeze: "Freeze", decoy: "Decoy", blackout: "Blackout" };
 function inventory(s: State): void {
   const slot = $<HTMLButtonElement>("slot");
   const show = s.phase === "playing" && s.me?.status === "alive";
@@ -788,6 +794,7 @@ function bannerText(s: State): string {
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
       if (s.me?.lit) return "You're in someone's light. Move!";
       if (s.me?.frozenMs) return `Frozen! ${Math.ceil(s.me.frozenMs / 1000)}s`;
+      if (s.me?.dimmedMs) return `Blackout! Your torch is dimmed for ${Math.ceil(s.me.dimmedMs / 1000)}s`;
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
       if (s.me?.xrayMs) return "X-ray torch: you see through walls, but can only catch in the open";
