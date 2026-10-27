@@ -13,6 +13,7 @@ import {
   type Kind,
   type Maze,
 } from "../shared/world.ts";
+import { startEditor } from "./editor.ts";
 
 type Phase = "waiting" | "countdown" | "playing" | "ended";
 type Status = "alive" | "caught" | "spectating";
@@ -109,6 +110,9 @@ let lastFrame = performance.now();
 // record on the board and take it to any device. Someone new, with no cookie
 // yet, gets the how to play window once they're in the room.
 let firstVisit = false;
+// /?edit opens the map editor instead of a room; naming yourself there is
+// only so a map can be saved under your name, so it doesn't go on into a room
+const editing = new URLSearchParams(location.search).has("edit");
 async function start(): Promise<void> {
   const res = await fetch("/api/me");
   if (res.ok) return enter();
@@ -125,7 +129,7 @@ $<HTMLFormElement>("join-form").addEventListener("submit", async (e) => {
     return;
   }
   $<HTMLDialogElement>("join").close();
-  enter();
+  if (!editing) enter();
 });
 
 // The account dialog serves signing in, signing up from scratch, and a guest
@@ -984,5 +988,8 @@ async function refreshRecord(): Promise<void> {
   }
 }
 
-requestAnimationFrame(frame);
-start();
+if (editing) startEditor();
+else {
+  requestAnimationFrame(frame);
+  start();
+}

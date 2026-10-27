@@ -99,7 +99,14 @@ keep running into each other and six have as much space each as two, up to a
 size that still fits on a phone. Bigger mazes get more open halls, not just
 more corridor.
 
-Maps can be hand-made too, and saved to a library everyone shares. A map
+Maps can be hand-made too, in the map editor: the start screen offers it
+beside joining a room, and the host's map picker links to it. You paint walls
+and floor on a grid, at any odd size from 11 to 41 each way, or start from a
+random maze and change it. Each spot where players and powerups can appear
+is marked with a dot, floor sealed off from the rest is washed red, and a
+line along the top says whether the map is ready or what's in the way. You
+can open any map in the library to start a copy of it. Saved maps go in a
+library everyone shares. A map
 is 11 to 41 squares each way, an odd number, walled all the way round, with
 no floor sealed off from the rest and at least twelve of the marked spots
 open, since those are where players start and powerups land. The server

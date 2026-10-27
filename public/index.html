@@ -56,6 +56,39 @@
       </button>
     </main>
 
+    <!-- The map editor, at /?edit: the same night, a grid to paint walls and
+         floor on, and a bar of tools. The game above stays hidden. -->
+    <main id="editor" class="editor" aria-label="Map editor" hidden>
+      <div class="hud ed-top">
+        <p class="hud-line">
+          <span class="hud-room">Map editor</span>
+          <a class="hud-button" href="/">Play</a>
+          <button id="ed-load" type="button" class="hud-button">Open a map</button>
+        </p>
+        <p id="ed-status" class="hud-count" role="status" aria-live="polite"></p>
+      </div>
+      <canvas id="grid" class="grid" aria-label="The map. Click or drag to paint, with the tool picked below."></canvas>
+      <div class="tools">
+        <div class="tool-row" role="radiogroup" aria-label="Paint with">
+          <button type="button" role="radio" data-tool="#" aria-checked="true">Wall</button>
+          <button type="button" role="radio" data-tool="." aria-checked="false">Floor</button>
+        </div>
+        <div class="tool-row">
+          <label for="ed-w">Size</label>
+          <input id="ed-w" type="number" min="11" max="41" step="2" value="21" aria-label="Width" />
+          <span aria-hidden="true">by</span>
+          <input id="ed-h" type="number" min="11" max="41" step="2" value="21" aria-label="Height" />
+          <button id="ed-clear" type="button" class="quiet">Clear</button>
+          <button id="ed-maze" type="button" class="quiet">Start from a maze</button>
+        </div>
+        <div class="tool-row">
+          <label for="ed-name" class="visually-hidden">Map name</label>
+          <input id="ed-name" maxlength="24" placeholder="Name your map" autocomplete="off" />
+          <button id="ed-save" type="button">Save to the library</button>
+        </div>
+      </div>
+    </main>
+
     <!-- The floating window over the maze, one tab per page. It opens by
          itself on a first visit, and from the corner any time after. -->
     <dialog id="window" class="window" aria-labelledby="window-h">
@@ -94,6 +127,9 @@
         <h3>The falling floor</h3>
         <p>A minute in, the floor starts falling away from the edges toward the middle. A tile shakes and glows red
           before it goes; step onto a fallen one and you're out.</p>
+        <h3>Maps</h3>
+        <p>The host can pick a hand-made map in the lobby, under the modes. Anyone can draw one in the
+          <a href="/?edit">map editor</a> and save it for everyone.</p>
         <p class="more"><a href="/readme/">The full rules</a></p>
       </section>
       <section id="panel-scores" class="panel scores" role="tabpanel" aria-labelledby="tab-scores" tabindex="0" hidden>
@@ -112,7 +148,7 @@
       <form method="dialog" id="maps-form">
         <h2 id="maps-h">Pick a map</h2>
         <ul id="map-list" class="map-list"></ul>
-        <p class="maps-note"><a href="/?edit">Make your own in the map editor</a></p>
+        <p class="maps-note" id="maps-note"><a href="/?edit">Make your own in the map editor</a></p>
         <button id="maps-close" type="button" class="quiet">Close</button>
       </form>
     </dialog>
@@ -125,6 +161,7 @@
         <p id="join-error" class="error" role="alert"></p>
         <button type="submit">Play as a guest</button>
         <button id="to-account" type="button" class="quiet">Sign in or make an account</button>
+        <a class="button quiet join-or" href="/?edit">Or open the map editor</a>
       </form>
     </dialog>
 
@@ -151,6 +188,8 @@
         <input id="code" name="code" maxlength="4" autocomplete="off" autocapitalize="characters" />
         <p id="rooms-error" class="error" role="alert"></p>
         <button type="submit" class="quiet">Join</button>
+        <p class="join-or">Or draw a map of your own for hosts to play on.</p>
+        <a class="button quiet" href="/?edit">Open the map editor</a>
       </form>
     </dialog>
   </body>

@@ -791,6 +791,113 @@ button.quiet {
   }
 }
 
+/* The map editor: the grid fills the screen above a bar of tools, both in
+   the night colours, so a map looks here the way it will in a round. */
+.editor {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--night);
+  color: #e6e8ee;
+  --surface: #1b2131;
+  --ink: #e6e8ee;
+  --muted: #9aa1b3;
+  --line: rgb(255 255 255 / 0.16);
+  --accent: #72b4cb;
+  --accent-ink: #0e1a20;
+  --bg: rgb(255 255 255 / 0.05);
+  color-scheme: dark;
+}
+
+/* the editor's top bar sits in the flow above the grid, not over it */
+.editor .ed-top {
+  position: static;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-left)) 0.5rem;
+  max-width: none;
+}
+
+.grid {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.editor .hud-count {
+  white-space: normal;
+  max-width: 34rem;
+}
+
+.editor .hud-count.bad {
+  color: #f0a090;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+  padding: 0.75rem max(0.75rem, env(safe-area-inset-left)) max(0.75rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: rgb(14 18 28 / 0.9);
+}
+
+.tool-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.tool-row label,
+.tool-row span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.tool-row button,
+.tool-row input {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.9rem;
+}
+
+.tool-row input[type="number"] {
+  width: 4.2rem;
+}
+
+.tool-row [role="radio"] {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.tool-row [role="radio"][aria-checked="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+p.join-or {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* a link that does what a button does, styled like one */
+a.button {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 500;
+}
+
 /* the README page */
 body.readme main {
   display: block;
