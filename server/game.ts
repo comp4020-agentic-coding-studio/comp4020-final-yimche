@@ -246,7 +246,8 @@ export class Game {
   // Walking over a powerup picks it up, swapping out whatever you carried.
   // Each one taken turns up again somewhere else straight away, in a different
   // part of the maze, so there's always the same number about and no spot
-  // worth camping on.
+  // worth camping on. The one taken is gone before its replacement is placed,
+  // so the replacement is usually the same kind, or another just as scarce.
   private pickUp(): void {
     for (const p of this.alive()) {
       for (const it of [...this.pickups]) {
@@ -277,7 +278,8 @@ export class Game {
   }
 
   // Puts one powerup in a random room of a free sector, never the sector one
-  // was just taken from, and not right beside a player.
+  // was just taken from, and not right beside a player. It's whichever kind
+  // is scarcest among those out, so every kind is about at once.
   private place(not = -1): void {
     const g = this.sectors();
     const taken = new Set(this.pickups.map((it) => this.sectorOf(it.x, it.y)));
@@ -303,7 +305,11 @@ export class Game {
     const pool = clear.length > 0 ? clear : rooms;
     if (pool.length === 0) return;
     const [x, y] = pool[Math.floor(Math.random() * pool.length)];
-    const kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+    // the kind with fewest out; ties at random
+    const out = (k: Kind) => this.pickups.filter((it) => it.kind === k).length;
+    const fewest = Math.min(...KINDS.map(out));
+    const scarce = KINDS.filter((k) => out(k) === fewest);
+    const kind = scarce[Math.floor(Math.random() * scarce.length)];
     this.pickups.push({ id: ++this.pickupIds, kind, x, y });
   }
 

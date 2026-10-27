@@ -51,7 +51,10 @@ still in the dark wins the round.
    one at a time: walking over another swaps it in and the old one is gone.
    Whatever you pick up while a speed boost or x-ray torch is running waits
    until that one wears off. Each powerup taken turns up again somewhere else
-   in the maze, so there's no spot worth camping on.
+   in the maze, so there's no spot worth camping on. They're dealt evenly:
+   every kind is always out on the map, and no kind ever has more than one
+   more out than any other. The one that turns up in place of a taken powerup
+   is whichever kind is now scarcest, so the mix stays even.
    - **Speed**: a few seconds of running faster.
    - **X-ray**: for a few seconds your torch sees through walls. It shows you
      where people are, but it only catches someone in the open, never through

@@ -8,6 +8,7 @@ import {
   FLASH_EVERY_MS,
   FLASH_MS,
   FREEZE_MS,
+  KINDS,
   SPEED,
   SPEED_MS,
   TELEPORT_HALF_ANGLE,
@@ -351,6 +352,48 @@ describe("powerups take your one slot until you use them", () => {
       const gap = game.maze.w / 4; // a sector is under a third of the maze across
       for (const p of pickups) {
         for (const q of pickups) if (p !== q) expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(gap / 2);
+      }
+    }
+  });
+
+  // How many of each kind are out, and whether the mix is as even as it can be:
+  // every kind there, and no kind more than one ahead of another.
+  const evenMix = (pickups: { kind: string }[]) => {
+    const counts = KINDS.map((k) => pickups.filter((p) => p.kind === k).length);
+    expect(new Set(pickups.map((p) => p.kind))).toEqual(new Set(KINDS));
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+  };
+
+  const freshRound = (players: number) => {
+    const game = new Game(hooks());
+    for (let i = 0; i < players; i++) game.join(`p${i}`, `P${i}`, 0);
+    game.start("p0", 0);
+    game.tick(10_000, 0.05);
+    return game;
+  };
+
+  it("every kind of powerup is out at the start of a round, never all the same one", () => {
+    for (let players = 2; players <= 6; players++) {
+      for (let n = 0; n < 10; n++) {
+        const { pickups } = freshRound(players).viewFor("p0", 10_000);
+        expect(pickups.length).toBe(players + 2);
+        evenMix(pickups);
+      }
+    }
+  });
+
+  it("picking powerups up keeps the mix even", () => {
+    for (const players of [2, 4, 6]) {
+      const game = freshRound(players);
+      const me = game.players.get("p0")!;
+      for (let i = 0; i < 25; i++) {
+        const target = game.viewFor("p0", 10_000 + i * 50).pickups[0];
+        Object.assign(me, { x: target.x, y: target.y }); // walk onto one
+        game.tick(10_050 + i * 50, 0.05);
+        expect(me.item).toBe(target.kind); // it was picked up
+        const { pickups } = game.viewFor("p0", 10_050 + i * 50);
+        expect(pickups.length).toBe(players + 2);
+        evenMix(pickups);
       }
     }
   });
