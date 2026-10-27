@@ -11,37 +11,54 @@
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.js"></script>
   </head>
-  <body>
-    <header>
-      <h1>Torchlight</h1>
-      <p class="tag">Everyone seeks. Hold your torch on someone's back or side to catch them.</p>
-      <a href="/readme/">About</a>
-    </header>
+  <body class="game">
+    <main class="stage" aria-label="Maze">
+      <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys. Escape opens the menu."></canvas>
 
-    <main>
-      <section class="stage" aria-label="Maze">
-        <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys."></canvas>
-        <div id="banner" class="banner" role="status" aria-live="polite"></div>
-        <div id="lobby" class="lobby" hidden>
-          <div id="modes" class="modes" role="radiogroup" aria-label="Game mode">
-            <button type="button" data-mode="ffa" role="radio">Free for all</button>
-            <button type="button" data-mode="teams" role="radio">Teams</button>
-            <button type="button" data-mode="duel" role="radio">One v one</button>
-          </div>
-          <button id="start" class="start" type="button">Start the round</button>
-        </div>
-        <button id="slot" class="slot" type="button" data-kind="" hidden>
-          <span class="icon" aria-hidden="true">
-            <svg data-kind="speed" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>
-            <svg data-kind="xray" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg data-kind="teleport" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
-          </span>
-          <span id="slot-label">Empty</span>
-          <kbd>Space</kbd>
+      <!-- what a player needs mid-round, always on screen; the rest is in the menu -->
+      <div class="hud">
+        <button id="menu-open" class="hud-menu" type="button" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false" title="Menu (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          <span class="visually-hidden">Menu</span>
         </button>
-      </section>
+        <p class="hud-text">
+          <span id="hud-room" class="hud-room" aria-label="Room code">····</span>
+          <span id="hud-count" class="hud-count">No opponents yet</span>
+        </p>
+      </div>
 
-      <aside>
+      <div id="banner" class="banner" role="status" aria-live="polite"></div>
+      <div id="lobby" class="lobby" hidden>
+        <div id="modes" class="modes" role="radiogroup" aria-label="Game mode">
+          <button type="button" data-mode="ffa" role="radio">Free for all</button>
+          <button type="button" data-mode="teams" role="radio">Teams</button>
+          <button type="button" data-mode="duel" role="radio">One v one</button>
+        </div>
+        <button id="start" class="start" type="button">Start the round</button>
+      </div>
+      <button id="slot" class="slot" type="button" data-kind="" hidden>
+        <span class="icon" aria-hidden="true">
+          <svg data-kind="speed" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>
+          <svg data-kind="xray" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg data-kind="teleport" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+        </span>
+        <span id="slot-label">Empty</span>
+        <kbd>Space</kbd>
+      </button>
+    </main>
+
+    <!-- the game menu: everything that isn't needed mid-round. The round keeps
+         running behind it. -->
+    <dialog id="menu" class="menu" aria-labelledby="menu-h">
+      <div class="menu-body">
+        <header class="menu-head">
+          <h1 id="menu-h">Torchlight</h1>
+          <button id="menu-close" type="button" class="quiet close" aria-label="Close the menu" title="Close (Esc)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </header>
+        <p class="tag">Everyone seeks. Hold your torch on someone's back or side to catch them.</p>
+
         <section aria-labelledby="room-h">
           <h2 id="room-h">Room <small id="mode-name" class="mode-name"></small></h2>
           <p class="room"><span id="room-code" class="code">····</span>
@@ -68,13 +85,17 @@
           <h2 id="board-h">Best seekers</h2>
           <ol id="board" class="board"></ol>
         </section>
-        <p class="help">
-          Move with <kbd>WASD</kbd> or the arrows, or drag on the maze. Your torch points at the
-          mouse; on a phone, where you walk. Keep off the floor that falls away once the dark closes in. Walk over a powerup to carry it, one at a time; use it with
-          <kbd>Space</kbd> or by tapping it.
-        </p>
-      </aside>
-    </main>
+        <section aria-labelledby="help-h">
+          <h2 id="help-h">How to play</h2>
+          <p class="help">
+            Move with <kbd>WASD</kbd> or the arrows, or drag on the maze. Your torch points at the
+            mouse; on a phone, where you walk. Keep off the floor that falls away once the dark closes in. Walk over a powerup to carry it, one at a time; use it with
+            <kbd>Space</kbd> or by tapping it. <kbd>Esc</kbd> opens and closes this menu.
+          </p>
+          <p class="help"><a href="/readme/">About Torchlight</a></p>
+        </section>
+      </div>
+    </dialog>
 
     <dialog id="join">
       <form method="dialog" id="join-form">

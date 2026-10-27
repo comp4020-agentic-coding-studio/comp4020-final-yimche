@@ -125,7 +125,10 @@ function openAccount(fromGame: boolean): void {
   $<HTMLDialogElement>("account").showModal();
 }
 $("to-account").addEventListener("click", () => openAccount(false));
-$("make-account").addEventListener("click", () => openAccount(true));
+$("make-account").addEventListener("click", () => {
+  closeMenu();
+  openAccount(true);
+});
 $("account-back").addEventListener("click", () => {
   $<HTMLDialogElement>("account").close();
   $<HTMLDialogElement>("join").showModal();
@@ -223,6 +226,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
     case "hello":
       myId = msg.id;
       $("room-code").textContent = msg.room;
+      $("hud-room").textContent = msg.room;
       document.title = `${msg.room} · Torchlight`;
       renderRoster();
       break;
@@ -285,6 +289,10 @@ const KEYMAP: Record<string, [number, number]> = {
 
 const keyDirection = (e: KeyboardEvent) => KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key] ?? KEYMAP[e.code];
 
+// While the menu or any other dialog is up, keys belong to it: the arrows
+// scroll and Space presses buttons there, and nobody walks into a wall.
+const dialogOpen = () => document.querySelector("dialog[open]") !== null;
+
 // Space uses whatever powerup you're carrying, as does tapping the slot
 function use(): void {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "use" }));
@@ -292,7 +300,7 @@ function use(): void {
 }
 addEventListener("keydown", (e) => {
   if (e.code !== "Space" || e.repeat || state?.phase !== "playing") return;
-  if (document.activeElement instanceof HTMLInputElement) return;
+  if (document.activeElement instanceof HTMLInputElement || dialogOpen()) return;
   e.preventDefault(); // or Space would also press whichever button has focus
   use();
 }, { capture: true });
@@ -300,7 +308,7 @@ $("slot").addEventListener("click", use);
 
 addEventListener("keydown", (e) => {
   const dir = keyDirection(e);
-  if (!dir || e.ctrlKey || e.metaKey || e.altKey || document.activeElement instanceof HTMLInputElement) return;
+  if (!dir || e.ctrlKey || e.metaKey || e.altKey || document.activeElement instanceof HTMLInputElement || dialogOpen()) return;
   e.preventDefault();
   keys.set(e.code, dir); // the torch stays on the cursor while you walk
 });
@@ -725,18 +733,66 @@ function banner(text: string): void {
   $("banner").textContent = text;
 }
 
-// ---------- side panel ----------
+// ---------- the menu ----------
+
+// Everything that isn't needed mid-round lives in one menu over the maze,
+// opened from the corner button or with Escape, and closed the same way, with
+// its close button, or by clicking outside it. The round carries on behind it.
+const menu = $<HTMLDialogElement>("menu");
+const menuButton = $<HTMLButtonElement>("menu-open");
+
+function openMenu(): void {
+  if (menu.open) return;
+  keys.clear(); // or a key held as it opened would keep you walking
+  joystick = null;
+  menu.showModal();
+  menuButton.setAttribute("aria-expanded", "true");
+  $("menu-close").focus();
+}
+
+function closeMenu(): void {
+  if (menu.open) menu.close();
+}
+
+menu.addEventListener("close", () => {
+  menuButton.setAttribute("aria-expanded", "false");
+  canvas.focus();
+});
+menuButton.addEventListener("click", openMenu);
+$("menu-close").addEventListener("click", closeMenu);
+// a click on the backdrop lands on the dialog itself, outside its box
+menu.addEventListener("click", (e) => {
+  const r = menu.getBoundingClientRect();
+  const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  if (e.target === menu && !inside) closeMenu();
+});
+// Escape toggles the menu, but leaves the join and account dialogs to close themselves
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.repeat) return;
+  if (menu.open) {
+    e.preventDefault();
+    closeMenu();
+  } else if (!dialogOpen()) {
+    e.preventDefault();
+    openMenu();
+  }
+});
+
+// ---------- what's in the menu ----------
 
 // The tracker lists your opponents only: who is still out there in the dark
-// for you to find. Your own status is in the banner over the maze.
+// for you to find, with the count also in the corner over the maze. Your own
+// status is in the banner.
 function renderRoster(): void {
   const myTeam = roster.find((p) => p.id === myId)?.team;
   const opponents = roster.filter((p) => p.id !== myId && p.status !== "spectating" && (!myTeam || p.team !== myTeam));
   const hiding = opponents.filter((p) => p.status === "alive").length;
-  $("count").textContent =
+  const count =
     opponents.length === 0
       ? "No opponents yet"
       : `${hiding} of ${opponents.length} ${opponents.length === 1 ? "opponent" : "opponents"} left`;
+  $("count").textContent = count;
+  $("hud-count").textContent = count;
   const order = { alive: 0, caught: 1, spectating: 2 };
   $("roster").replaceChildren(
     ...roster
