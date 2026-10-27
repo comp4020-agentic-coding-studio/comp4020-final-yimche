@@ -295,6 +295,146 @@ canvas:focus-visible {
 
 
 
+/* The floating window: a panel of dark glass in the middle of the maze, in
+   night colours in both schemes, since it always sits over the dark. Tabs
+   along the top, one page showing at a time, scrolling inside if it must. */
+.window {
+  --surface: rgb(20 25 38 / 0.96);
+  --ink: #e6e8ee;
+  --muted: #9aa1b3;
+  --line: rgb(255 255 255 / 0.14);
+  --accent: #72b4cb;
+  --accent-ink: #0e1a20;
+  --bg: rgb(255 255 255 / 0.04);
+  color-scheme: dark;
+  width: min(30rem, calc(100vw - 2rem));
+  max-height: min(40rem, calc(100dvh - 2rem));
+  padding: 0;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.5);
+}
+
+.window[open] {
+  display: flex;
+}
+
+.window::backdrop {
+  background: rgb(4 5 10 / 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.window-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem 0 1.25rem;
+}
+
+.window-head h2 {
+  margin: 0;
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.close:hover {
+  border-color: var(--line);
+}
+
+.close svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.6rem 1.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0.45rem 0.6rem;
+  margin-bottom: -1px;
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.panel {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.9rem 1.25rem 1.25rem;
+}
+
+.panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.help {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.help p,
+.help ul {
+  margin: 0 0 0.5rem;
+}
+
+.help ul {
+  padding-left: 1.1rem;
+}
+
+.help li {
+  margin-bottom: 0.2rem;
+}
+
+.help h3 {
+  margin: 0.9rem 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.help .lede {
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.help .speed { color: var(--speed); }
+.help .xray { color: #9a82f0; }
+.help .teleport { color: #ec6ea4; }
+.help .freeze { color: var(--freeze); }
+
+.help .more {
+  margin: 1rem 0 0;
+}
+
 kbd {
   font: inherit;
   font-size: 0.8em;

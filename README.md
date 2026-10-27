@@ -32,8 +32,9 @@ still in the dark wins the round.
    at the mouse, whichever way you walk, so you can back away from someone
    with your light still on them. On a phone, with no mouse, it points where
    you walk. The game fills the screen. The top left corner shows the room
-   code, with buttons to copy the room's link or go to other rooms, and how
-   many opponents are still in; each catch shows briefly under the banner.
+   code, with buttons to copy the room's link, go to other rooms or read how
+   to play, and how many opponents are still in; each catch shows briefly
+   under the banner. How to play opens by itself the first time you join.
 5. You can only see what your torch lights, plus a small circle around you.
    Keep your beam on someone from behind or from the side and they're out.
    Only the quarter in front of them, 45° either side of where they're

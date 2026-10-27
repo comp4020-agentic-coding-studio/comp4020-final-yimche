@@ -100,10 +100,13 @@ let lastFrame = performance.now();
 // ---------- joining ----------
 
 // A name and you're in as a guest; or sign in, or make an account, to keep a
-// record on the board and take it to any device.
+// record on the board and take it to any device. Someone new, with no cookie
+// yet, gets the how to play window once they're in the room.
+let firstVisit = false;
 async function start(): Promise<void> {
   const res = await fetch("/api/me");
   if (res.ok) return enter();
+  firstVisit = true;
   $<HTMLDialogElement>("join").showModal();
 }
 
@@ -211,6 +214,10 @@ function connect(): void {
     retry = Math.min(retry * 2, 5000);
   };
   canvas.focus();
+  if (firstVisit) {
+    firstVisit = false;
+    openWindow("help");
+  }
 }
 
 function handle(msg: { t: string } & Record<string, any>): void {
@@ -787,6 +794,54 @@ function notice(text: string): void {
   setTimeout(() => li.classList.add("gone"), NOTICE_MS);
   setTimeout(() => li.remove(), NOTICE_MS + 600);
 }
+
+// ---------- the floating window ----------
+
+// One window over the maze with a tab for each page. It closes with its
+// button, Escape, or a click outside it, and gives focus back to the maze.
+// The round carries on behind it, but keys stay with the window while it's up.
+const win = $<HTMLDialogElement>("window");
+const tabs = [...win.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+
+function showTab(name: string, focus = false): void {
+  for (const tab of tabs) {
+    const on = tab.id === `tab-${name}`;
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    $(tab.getAttribute("aria-controls")!).hidden = !on;
+    if (on && focus) tab.focus();
+  }
+}
+
+function openWindow(name: string): void {
+  showTab(name);
+  if (!win.open) {
+    keys.clear(); // or a key held as it opened would keep you walking
+    joystick = null;
+    win.showModal();
+  }
+  $(`tab-${name}`).focus();
+}
+
+win.addEventListener("close", () => canvas.focus());
+$("window-close").addEventListener("click", () => win.close());
+// a click on the backdrop lands on the dialog itself, outside its box
+win.addEventListener("click", (e) => {
+  const r = win.getBoundingClientRect();
+  const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  if (e.target === win && !inside) win.close();
+});
+$("open-help").addEventListener("click", () => openWindow("help"));
+
+// the tabs are picked by clicking, or with the arrow keys once one has focus
+for (const tab of tabs) tab.addEventListener("click", () => showTab(tab.id.slice(4)));
+win.querySelector('[role="tablist"]')!.addEventListener("keydown", (e) => {
+  const step = { ArrowRight: 1, ArrowLeft: -1 }[(e as KeyboardEvent).key];
+  if (!step) return;
+  e.preventDefault();
+  const at = tabs.findIndex((t) => t.getAttribute("aria-selected") === "true");
+  showTab(tabs[(at + step + tabs.length) % tabs.length].id.slice(4), true);
+});
 
 requestAnimationFrame(frame);
 start();

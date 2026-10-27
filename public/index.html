@@ -21,6 +21,7 @@
           <span id="hud-room" class="hud-room" aria-label="Room code">····</span>
           <button id="copy" type="button" class="hud-button">Copy link</button>
           <a class="hud-button" href="/">Other rooms</a>
+          <button id="open-help" type="button" class="hud-button" aria-haspopup="dialog" aria-controls="window">How to play</button>
         </p>
         <p id="hud-count" class="hud-count">No opponents yet</p>
       </div>
@@ -49,6 +50,45 @@
         <kbd>Space</kbd>
       </button>
     </main>
+
+    <!-- The floating window over the maze, one tab per page. It opens by
+         itself on a first visit, and from the corner any time after. -->
+    <dialog id="window" class="window" aria-labelledby="window-h">
+      <header class="window-head">
+        <h2 id="window-h">Torchlight</h2>
+        <button id="window-close" type="button" class="close" aria-label="Close" title="Close (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <div class="tabs" role="tablist" aria-label="Torchlight">
+        <button id="tab-help" type="button" role="tab" aria-controls="panel-help">How to play</button>
+      </div>
+      <section id="panel-help" class="panel help" role="tabpanel" aria-labelledby="tab-help" tabindex="0">
+        <p class="lede">Everyone seeks. Hold your torch on someone's back or side to catch them, and don't let them do it to you.</p>
+        <h3>Moving</h3>
+        <p>Walk with <kbd>WASD</kbd> or the arrow keys, or drag on the maze on a phone. Your torch points at the mouse,
+          whichever way you walk; on a phone it points where you walk.</p>
+        <h3>Catching</h3>
+        <p>You see only what your torch lights and a small circle around you. Keep your beam on someone from behind or
+          from the side and they're out. The quarter in front of them is safe: they can see you coming.</p>
+        <p>Bump into someone head on, or light each other at once, and you're both stunned: no catches between you
+          until the light comes off and the ring stops flashing.</p>
+        <h3>The flash</h3>
+        <p>Every ten seconds the whole maze lights up for a moment, and everyone still in shows with it.</p>
+        <h3>Powerups</h3>
+        <p>Walk over one to carry it, one at a time, and use it with <kbd>Space</kbd> or by tapping the slot at the bottom.</p>
+        <ul>
+          <li><b class="speed">Speed</b> runs you faster for a few seconds.</li>
+          <li><b class="xray">X-ray</b> lets your torch see through walls, though it only catches in the open.</li>
+          <li><b class="teleport">Teleport</b> drops you a few rooms ahead of where you face.</li>
+          <li><b class="freeze">Freeze</b> stops everyone in your beam for five seconds.</li>
+        </ul>
+        <h3>The falling floor</h3>
+        <p>A minute in, the floor starts falling away from the edges toward the middle. A tile shakes and glows red
+          before it goes; step onto a fallen one and you're out.</p>
+        <p class="more"><a href="/readme/">The full rules</a></p>
+      </section>
+    </dialog>
 
     <dialog id="join">
       <form method="dialog" id="join-form">
