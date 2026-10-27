@@ -44,6 +44,7 @@ interface State {
     speedMs: number;
     xrayMs: number;
     frozenMs: number;
+    decoy: { x: number; y: number; facing: number; ms: number } | null;
   };
   zone: { x: number; y: number; r: number; closesInMs: number } | null;
   others: Seen[];
@@ -81,7 +82,7 @@ const TEAM_NAMES: Record<Team, string> = { red: "Red", blue: "Blue" };
 // the same on every screen and from round to round.
 const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a", light: "255 236 196" };
 const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
-const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4", freeze: "#bfeaff" };
+const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4", freeze: "#bfeaff", decoy: "#e8b04a" };
 // frost: the pale blue a frozen player and their stuck beam are tinted with
 const ICE = "200 238 255";
 const TEAM_COLOURS: Record<Team, string> = { red: "#f08a6c", blue: "#6ea8f5" };
@@ -501,6 +502,9 @@ function frame(now: number): void {
     if (o.frozen) frost(o.x, o.y, now);
     if (state.phase === "playing") shield(o.x, o.y, o.cooldownMs, o.cooldownHeld, now);
   }
+  // your own decoy, which only you are told about, drawn as a faint ghost of
+  // you so you know where you left it; everyone else sees it as you
+  if (playing && me?.decoy) ghost(me.decoy.x, me.decoy.y, me.decoy.facing, Math.min(1, me.decoy.ms / 1000));
   if (playing && me) {
     if (me.speedMs > 0) trail(drawn.x, drawn.y, me.facing);
     dot(drawn.x, drawn.y, me.facing, colourOf(myId), "you", me.lit);
@@ -580,7 +584,7 @@ function tile(x: number, y: number, isWall: boolean, lip: boolean, depth: number
 // The slot: what you're carrying, if anything. While a boost or an x-ray
 // torch runs, or you're frozen, a bar in its colour drains along the bottom,
 // and anything you picked up meanwhile waits its turn.
-const NAMES: Record<Kind, string> = { speed: "Speed", xray: "X-ray", teleport: "Teleport", freeze: "Freeze" };
+const NAMES: Record<Kind, string> = { speed: "Speed", xray: "X-ray", teleport: "Teleport", freeze: "Freeze", decoy: "Decoy" };
 function inventory(s: State): void {
   const slot = $<HTMLButtonElement>("slot");
   const show = s.phase === "playing" && s.me?.status === "alive";
@@ -618,6 +622,23 @@ function pickup(x: number, y: number, kind: Kind, now: number): void {
   ctx.lineTo(sx - r, sy);
   ctx.closePath();
   ctx.fill();
+}
+
+// Your decoy as you see it: your dot, see-through, with a dashed ring, and
+// fading out over its last second. Its label stays off while you stand on
+// it, so the two names don't print over each other.
+function ghost(x: number, y: number, facing: number, fade: number): void {
+  ctx.save();
+  ctx.globalAlpha = 0.45 * fade;
+  dot(x, y, facing, colourOf(myId), Math.hypot(x - drawn.x, y - drawn.y) < 1 ? "" : "decoy");
+  ctx.globalAlpha = 0.8 * fade;
+  ctx.strokeStyle = KIND_COLOURS.decoy;
+  ctx.lineWidth = Math.max(1.5, scale * 0.05);
+  ctx.setLineDash([scale * 0.12, scale * 0.1]);
+  ctx.beginPath();
+  ctx.arc(offX + x * scale, offY + y * scale, PLAYER_RADIUS * scale * 1.5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // a few fading ghosts behind you while a speed boost runs

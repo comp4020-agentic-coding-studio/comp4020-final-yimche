@@ -5,6 +5,7 @@ import {
   CATCH_SECONDS,
   CLOSE_AFTER_MS,
   CLOSE_TAKES_MS,
+  DECOY_MS,
   FLASH_EVERY_MS,
   FLASH_MS,
   FREEZE_MS,
@@ -348,7 +349,7 @@ describe("powerups take your one slot until you use them", () => {
       game.start("a", 0);
       game.tick(10_000, 0.05);
       const { pickups } = game.viewFor("a", 10_000);
-      expect(pickups.length).toBe(4); // two more than there are players
+      expect(pickups.length).toBe(Math.max(4, KINDS.length)); // two more than there are players, and one of each kind at least
       const gap = game.maze.w / 4; // a sector is under a third of the maze across
       for (const p of pickups) {
         for (const q of pickups) if (p !== q) expect(Math.hypot(p.x - q.x, p.y - q.y)).toBeGreaterThan(gap / 2);
@@ -376,7 +377,7 @@ describe("powerups take your one slot until you use them", () => {
     for (let players = 2; players <= 6; players++) {
       for (let n = 0; n < 10; n++) {
         const { pickups } = freshRound(players).viewFor("p0", 10_000);
-        expect(pickups.length).toBe(players + 2);
+        expect(pickups.length).toBe(Math.max(players + 2, KINDS.length));
         evenMix(pickups);
       }
     }
@@ -392,7 +393,7 @@ describe("powerups take your one slot until you use them", () => {
         game.tick(10_050 + i * 50, 0.05);
         expect(me.item).toBe(target.kind); // it was picked up
         const { pickups } = game.viewFor("p0", 10_050 + i * 50);
-        expect(pickups.length).toBe(players + 2);
+        expect(pickups.length).toBe(Math.max(players + 2, KINDS.length));
         evenMix(pickups);
       }
     }
@@ -595,6 +596,77 @@ describe("powerups take your one slot until you use them", () => {
     expect(game.viewFor("b", 10_000 + FREEZE_MS + 1).me?.frozenMs).toBe(0);
     a.facing = 0;
     expect(game.viewFor("a", 10_000 + FREEZE_MS + 1).others.map((o) => o.frozen)).toEqual([false]);
+  });
+});
+
+describe("a decoy leaves a copy of you behind", () => {
+  it("others see a decoy as you, standing still where you left it, for eight seconds", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: Math.PI }); // b looks west, at where a stands
+    const real = game.viewFor("b", 10_000).others;
+    a.item = "decoy";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(game.viewFor("a", 10_000).me?.item).toBe(null);
+    Object.assign(a, { x: 10.5, y: 3.5, facing: Math.PI / 2 }); // a slips away into the dark
+    const seen = game.viewFor("b", 10_000).others;
+    expect(seen).toEqual(real); // the same as a, field for field
+    expect(game.viewFor("b", 10_000 + DECOY_MS - 1).others.map((o) => [o.id, o.x, o.y])).toEqual([["a", 2.5, 2.5]]);
+    expect(game.viewFor("b", 10_000 + DECOY_MS + 1).others).toEqual([]);
+  });
+
+  it("a decoy can't be caught; a beam on its back does nothing", () => {
+    const { game, a, b, h } = playing();
+    Object.assign(a, { x: 5.5, y: 2.5, facing: 0 });
+    a.item = "decoy";
+    expect(game.use("a", 10_000)).toBe(true);
+    Object.assign(a, { x: 10.5, y: 3.5, facing: Math.PI / 2 });
+    Object.assign(b, { x: 2.5, y: 2.5, facing: 0 }); // b behind the decoy, beam on its back
+    game.setInput("b", 0, 0, 0);
+    game.tick(10_050, CATCH_SECONDS + 1);
+    expect(a.status).toBe("alive");
+    expect(a.lit).toBe(false);
+    expect(h.catches).toEqual([]);
+  });
+
+  it("a decoy hides in the dark like anyone else, and shows in a flash", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    const flashAt = 10_000 + FLASH_EVERY_MS;
+    a.item = "decoy";
+    expect(game.use("a", flashAt - 1000)).toBe(true);
+    Object.assign(a, { x: 10.5, y: 3.5, facing: Math.PI / 2 });
+    Object.assign(b, { x: 5.5, y: 2.5, facing: -Math.PI / 2 }); // b looks at the wall, away from both
+    expect(game.viewFor("b", flashAt - 1000).others).toEqual([]);
+    game.tick(flashAt, 0);
+    const ids = game.viewFor("b", flashAt).others.map((o) => [o.id, o.x]);
+    expect(ids).toContainEqual(["a", 2.5]); // the decoy
+    expect(ids).toContainEqual(["a", 10.5]); // and a, wherever a really is
+  });
+
+  it("only you are told which one is your decoy, and a new one takes the old one's place", () => {
+    const { game, a } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 });
+    a.item = "decoy";
+    expect(game.use("a", 10_000)).toBe(true);
+    expect(game.viewFor("a", 10_000).me?.decoy).toMatchObject({ x: 2.5, y: 2.5, facing: 0, ms: DECOY_MS });
+    expect(game.viewFor("a", 10_000).others).toEqual([]);
+    expect(game.viewFor("b", 10_000).me?.decoy).toBe(null);
+    a.x = 4.5;
+    a.item = "decoy";
+    expect(game.use("a", 11_000)).toBe(true); // your next powerup is ready straight away
+    expect(game.viewFor("a", 11_000).me?.decoy).toMatchObject({ x: 4.5, ms: DECOY_MS });
+  });
+
+  it("a decoy goes when you're out", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });
+    a.item = "decoy";
+    expect(game.use("a", 10_000)).toBe(true);
+    Object.assign(b, { x: 2.5, y: 2.5, facing: 0 }); // b behind a, beam on a's back
+    game.tick(10_050, CATCH_SECONDS + 0.01);
+    expect(a.status).toBe("caught");
+    expect(game.viewFor("b", 10_050).others).toEqual([]);
   });
 });
 

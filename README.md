@@ -54,7 +54,9 @@ still in the dark wins the round.
    one at a time: walking over another swaps it in and the old one is gone.
    Whatever you pick up while a speed boost or x-ray torch is running waits
    until that one wears off. Each powerup taken turns up again somewhere else
-   in the maze, so there's no spot worth camping on. They're dealt evenly:
+   in the maze, more than five tiles from anyone, so there's no spot worth
+   camping on. There are two more out than there are players, and never
+   fewer than one of each kind. They're dealt evenly:
    every kind is always out on the map, and no kind ever has more than one
    more out than any other. The one that turns up in place of a taken powerup
    is whichever kind is now scarcest, so the mix stays even.
@@ -72,6 +74,13 @@ still in the dark wins the round.
      into it. With nobody in your beam it doesn't go off and stays in your
      slot. While you're frozen you can't use your own powerup until it wears
      off.
+   - **Decoy**: leaves a still copy of you where you stand, facing where you
+     face, for eight seconds. To everyone else it looks exactly like you: it
+     hides in the dark and shows in a flash like anyone, and nothing marks it
+     out. A beam on it does nothing, so whoever stalks it is wasting their
+     time while you slip away. Only you see it for what it is, as a faint
+     ghost with a dashed ring. Using another replaces it, and it goes if
+     you're out.
 8. The dark closes in so a round can't drag on. The maze is drawn as a grid
    of tiles, and a minute in they start falling away into the dark, in
    scattered bits from the edges toward one room near the middle, until only

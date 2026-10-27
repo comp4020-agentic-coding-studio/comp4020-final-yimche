@@ -5,6 +5,7 @@ import {
   CATCH_SECONDS,
   CLOSE_AFTER_MS,
   COLLIDE_DISTANCE,
+  DECOY_MS,
   FLASH_EVERY_MS,
   FLASH_MS,
   FREEZE_MS,
@@ -76,6 +77,8 @@ export interface Player extends Body {
   xrayUntil: number;
   // when a rival's freeze on this player wears off
   frozenUntil: number;
+  // a still copy of this player left behind, until it fades; nothing can catch it
+  decoy: (Body & { until: number }) | null;
 }
 
 export interface Pickup {
@@ -165,6 +168,7 @@ export class Game {
         speedUntil: 0,
         xrayUntil: 0,
         frozenUntil: 0,
+        decoy: null,
       };
       this.players.set(id, p);
       if (this.phase === "countdown" && this.mode === "duel") p.status = "spectating";
@@ -259,8 +263,10 @@ export class Game {
     }
   }
 
+  // two more than there are players, and never fewer than there are kinds,
+  // so every kind can be out at once
   private pickupCount(): number {
-    return this.alive().length + 2;
+    return Math.max(this.alive().length + 2, KINDS.length);
   }
 
   // The maze is cut into a grid of sectors, about two for every powerup, and
@@ -278,7 +284,8 @@ export class Game {
   }
 
   // Puts one powerup in a random room of a free sector, never the sector one
-  // was just taken from, and not right beside a player. It's whichever kind
+  // was just taken from, and more than five tiles from any player, so the one
+  // that replaces a powerup never turns up under the feet that took it. It's whichever kind
   // is scarcest among those out, so every kind is about at once.
   private place(not = -1): void {
     const g = this.sectors();
@@ -299,7 +306,7 @@ export class Game {
     const apart = (this.maze.w / g) / 2;
     const clear = rooms.filter(
       ([x, y]) =>
-        this.alive().every((p) => Math.hypot(p.x - x, p.y - y) > 3) &&
+        this.alive().every((p) => Math.hypot(p.x - x, p.y - y) > 5) &&
         this.pickups.every((it) => Math.hypot(it.x - x, it.y - y) >= apart),
     );
     const pool = clear.length > 0 ? clear : rooms;
@@ -326,7 +333,9 @@ export class Game {
   // can't be used until the running one wears off; a teleport drops you in a
   // random room ahead of where you face. A freeze stops every rival in your
   // beam right now, walls in the way, and with nobody there it isn't spent.
-  // Nothing can be used while you're frozen yourself. Returns whether it was used.
+  // A decoy is a still copy of you where you stand, facing where you face;
+  // like a freeze it's over in an instant for you, and a new one replaces the
+  // old. Nothing can be used while you're frozen yourself. Returns whether it was used.
   use(id: string, now: number): boolean {
     const p = this.players.get(id);
     if (!p || p.status !== "alive" || this.phase !== "playing" || !p.item) return false;
@@ -344,6 +353,10 @@ export class Game {
     }
     const kind = p.item;
     p.item = null;
+    if (kind === "decoy") {
+      p.decoy = { x: p.x, y: p.y, facing: p.facing, until: now + DECOY_MS };
+      return true;
+    }
     if (kind === "speed") p.speedUntil = now + SPEED_MS;
     if (kind === "xray") p.xrayUntil = now + XRAY_MS;
     if (kind === "teleport") {
@@ -590,6 +603,7 @@ export class Game {
       p.speedUntil = 0;
       p.xrayUntil = 0;
       p.frozenUntil = 0;
+      p.decoy = null;
       p.vx = p.vy = 0;
     }
     this.pickups = [];
@@ -642,8 +656,21 @@ export class Game {
         p.status === "alive" &&
         (seesAll || canSee(this.maze, me, p, xray(me))),
     );
+    // A decoy is sent exactly as its owner would be, under their id, with their
+    // shield and frost, so nothing tells it apart; the dark hides it the same
+    // way. A decoy goes once its owner is out. Your own isn't among the others.
+    const decoys = [...this.players.values()]
+      .filter((p) => p.id !== id && p.status === "alive" && p.decoy && p.decoy.until > now)
+      .map((p) => ({ owner: p, body: p.decoy! }))
+      .filter(({ body }) => seesAll || canSee(this.maze, me, body, xray(me)));
     // how long a bump or stand-off with each player still shields the pair, so both can see it
     const cooldownMs = (p: Player) => (me ? Math.max(0, (me.cooldownUntil.get(p.id) ?? 0) - now) : 0);
+    const seen = (p: Player, body: Body) => ({ id: p.id, x: body.x, y: body.y, facing: body.facing,
+      cooldownMs: cooldownMs(p),
+      cooldownHeld: !!me?.cooldownHeld.has(p.id),
+      xray: xray(p),
+      frozen: p.frozenUntil > now,
+    });
     return {
       t: "state" as const,
       phase: this.phase,
@@ -662,6 +689,11 @@ export class Game {
         speedMs: Math.max(0, me.speedUntil - now),
         xrayMs: Math.max(0, me.xrayUntil - now),
         frozenMs: Math.max(0, me.frozenUntil - now),
+        // where your own decoy stands, which only you are told
+        decoy:
+          me.decoy && me.decoy.until > now && me.status === "alive"
+            ? { x: me.decoy.x, y: me.decoy.y, facing: me.decoy.facing, ms: me.decoy.until - now }
+            : null,
       },
       zone:
         this.phase === "playing"
@@ -672,12 +704,7 @@ export class Game {
               closesInMs: Math.max(0, this.playStartedAt + CLOSE_AFTER_MS - now),
             }
           : null,
-      others: visible.map((p) => ({ id: p.id, x: p.x, y: p.y, facing: p.facing,
-        cooldownMs: cooldownMs(p),
-        cooldownHeld: !!me?.cooldownHeld.has(p.id),
-        xray: xray(p),
-        frozen: p.frozenUntil > now,
-      })),
+      others: [...visible.map((p) => seen(p, p)), ...decoys.map(({ owner, body }) => seen(owner, body))],
       pickups: this.pickups,
     };
   }

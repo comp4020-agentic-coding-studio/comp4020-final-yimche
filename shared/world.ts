@@ -17,9 +17,10 @@ export const FLASH_MS = 1000; // how long a flash takes to fade back to dark
 // Powerups lie about the maze; walk over one to pick it up, and it's yours
 // until you choose to use it. You carry one at a time: walking over another
 // swaps it in, and the old one is gone. A freeze stops every rival your beam
-// is on where they stand, facing locked, for a few seconds.
-export type Kind = "speed" | "xray" | "teleport" | "freeze";
-export const KINDS: Kind[] = ["speed", "xray", "teleport", "freeze"];
+// is on where they stand, facing locked, for a few seconds. A decoy leaves a
+// still copy of you behind that looks like you to everyone else.
+export type Kind = "speed" | "xray" | "teleport" | "freeze" | "decoy";
+export const KINDS: Kind[] = ["speed", "xray", "teleport", "freeze", "decoy"];
 export const PICKUP_RADIUS = 0.55; // how close you have to walk to pick one up
 export const SPEED_BOOST = 1.6; // speed multiplier while a boost lasts
 export const SPEED_MS = 4000;
@@ -30,6 +31,7 @@ export const TELEPORT_HALF_ANGLE = Math.PI / 6;
 export const TELEPORT_MIN = 4;
 export const TELEPORT_MAX = 10;
 export const FREEZE_MS = 5000;
+export const DECOY_MS = 8000;
 
 // The dark closes in so a round can't drag on: a minute in, the floor starts
 // falling away from the edges toward one room, and over the next minute it
