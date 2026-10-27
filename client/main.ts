@@ -119,21 +119,13 @@ $<HTMLFormElement>("join-form").addEventListener("submit", async (e) => {
   enter();
 });
 
-// The account dialog serves signing in, signing up from scratch, and a guest
-// making an account mid-game (who keeps their player, so stays in the room).
-let accountFromGame = false;
-function openAccount(fromGame: boolean): void {
-  accountFromGame = fromGame;
+// The account dialog serves signing in and signing up from scratch.
+function openAccount(): void {
   $("account-error").textContent = "";
-  $("account-back").hidden = fromGame;
   $<HTMLDialogElement>("join").close();
   $<HTMLDialogElement>("account").showModal();
 }
-$("to-account").addEventListener("click", () => openAccount(false));
-$("make-account").addEventListener("click", () => {
-  closeMenu();
-  openAccount(true);
-});
+$("to-account").addEventListener("click", openAccount);
 $("account-back").addEventListener("click", () => {
   $<HTMLDialogElement>("account").close();
   $<HTMLDialogElement>("join").showModal();
@@ -146,11 +138,7 @@ async function account(path: "/api/login" | "/api/signup"): Promise<void> {
     return;
   }
   $<HTMLDialogElement>("account").close();
-  // signing in as someone else needs a fresh socket under the new player;
-  // a guest upgrading is the same player, so only the record changes
-  if (accountFromGame && path === "/api/signup") refreshRecord();
-  else if (socket) location.reload();
-  else enter();
+  enter();
 }
 $<HTMLFormElement>("account-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -222,7 +210,6 @@ function connect(): void {
     setTimeout(connect, retry);
     retry = Math.min(retry * 2, 5000);
   };
-  refreshRecord();
   canvas.focus();
 }
 
@@ -230,7 +217,6 @@ function handle(msg: { t: string } & Record<string, any>): void {
   switch (msg.t) {
     case "hello":
       myId = msg.id;
-      $("room-code").textContent = msg.room;
       $("hud-room").textContent = msg.room;
       document.title = `${msg.room} · Torchlight`;
       renderRoster();
@@ -240,8 +226,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
       maze = { w: rows[0].length, h: rows.length, rows };
       winner = msg.winner;
       winnerTeam = msg.winnerTeam;
-      if (msg.phase === "countdown") $("feed").replaceChildren();
-      if (msg.phase === "ended") refreshRecord();
+      if (msg.phase === "countdown") $("notices").replaceChildren();
       resize();
       break;
     }
@@ -249,11 +234,10 @@ function handle(msg: { t: string } & Record<string, any>): void {
       roster = msg.players;
       hostId = msg.host;
       mode = msg.mode;
-      $("mode-name").textContent = MODE_NAMES[mode];
       renderRoster();
       break;
     case "catch":
-      addFeed(msg.catcher ? `${msg.catcher} caught ${msg.caught}` : `The dark took ${msg.caught}`);
+      notice(msg.catcher ? `${msg.catcher} caught ${msg.caught}` : `The dark took ${msg.caught}`);
       break;
     case "state": {
       const first = !state?.me;
@@ -294,8 +278,8 @@ const KEYMAP: Record<string, [number, number]> = {
 
 const keyDirection = (e: KeyboardEvent) => KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key] ?? KEYMAP[e.code];
 
-// While the menu or any other dialog is up, keys belong to it: the arrows
-// scroll and Space presses buttons there, and nobody walks into a wall.
+// While a dialog is up, keys belong to it: the arrows and Space act there,
+// and nobody walks into a wall.
 const dialogOpen = () => document.querySelector("dialog[open]") !== null;
 
 // Space uses whatever powerup you're carrying, as does tapping the slot
@@ -659,13 +643,18 @@ $("modes").addEventListener("click", (e) => {
   canvas.focus();
 });
 
+// The room's link, for sending to friends. Where the clipboard is refused,
+// the link is offered to copy by hand instead.
 $("copy").addEventListener("click", async () => {
+  const button = $("copy");
   try {
     await navigator.clipboard.writeText(location.href);
-    $("copy").textContent = "Copied";
+    button.textContent = "Copied";
+    setTimeout(() => (button.textContent = "Copy link"), 2000);
   } catch {
-    $("copy").textContent = location.href;
+    prompt("Copy this link and send it to your friends", location.href);
   }
+  canvas.focus();
 });
 
 // A player: their colour, a dark rim, a notch showing which way they face (so
@@ -772,145 +761,31 @@ function banner(text: string): void {
   $("banner").textContent = text;
 }
 
-// ---------- the menu ----------
+// ---------- the corner and the notices ----------
 
-// Everything that isn't needed mid-round lives in one menu over the maze,
-// opened from the corner button or with Escape, and closed the same way, with
-// its close button, or by clicking outside it. The round carries on behind it.
-const menu = $<HTMLDialogElement>("menu");
-const menuButton = $<HTMLButtonElement>("menu-open");
-
-function openMenu(): void {
-  if (menu.open) return;
-  keys.clear(); // or a key held as it opened would keep you walking
-  joystick = null;
-  menu.showModal();
-  menuButton.setAttribute("aria-expanded", "true");
-  $("menu-close").focus();
-}
-
-function closeMenu(): void {
-  if (menu.open) menu.close();
-}
-
-menu.addEventListener("close", () => {
-  menuButton.setAttribute("aria-expanded", "false");
-  canvas.focus();
-});
-menuButton.addEventListener("click", openMenu);
-$("menu-close").addEventListener("click", closeMenu);
-// a click on the backdrop lands on the dialog itself, outside its box
-menu.addEventListener("click", (e) => {
-  const r = menu.getBoundingClientRect();
-  const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-  if (e.target === menu && !inside) closeMenu();
-});
-// Escape toggles the menu, but leaves the join and account dialogs to close themselves
-addEventListener("keydown", (e) => {
-  if (e.key !== "Escape" || e.repeat) return;
-  if (menu.open) {
-    e.preventDefault();
-    closeMenu();
-  } else if (!dialogOpen()) {
-    e.preventDefault();
-    openMenu();
-  }
-});
-
-// ---------- what's in the menu ----------
-
-// The tracker lists your opponents only: who is still out there in the dark
-// for you to find, with the count also in the corner over the maze. Your own
-// status is in the banner.
+// The corner shows how many opponents are still out there in the dark for you
+// to find. Your own status is in the banner.
 function renderRoster(): void {
   const myTeam = roster.find((p) => p.id === myId)?.team;
   const opponents = roster.filter((p) => p.id !== myId && p.status !== "spectating" && (!myTeam || p.team !== myTeam));
   const hiding = opponents.filter((p) => p.status === "alive").length;
-  const count =
+  $("hud-count").textContent =
     opponents.length === 0
       ? "No opponents yet"
       : `${hiding} of ${opponents.length} ${opponents.length === 1 ? "opponent" : "opponents"} left`;
-  $("count").textContent = count;
-  $("hud-count").textContent = count;
-  const order = { alive: 0, caught: 1, spectating: 2 };
-  $("roster").replaceChildren(
-    ...roster
-      .filter((p) => p.id !== myId)
-      .sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name))
-      .map((p) => {
-        const li = document.createElement("li");
-        const swatch = document.createElement("span");
-        swatch.className = "swatch";
-        swatch.style.background = colourOf(p.id);
-        const name = document.createElement("span");
-        name.textContent = p.name;
-        name.className = p.status;
-        const note = document.createElement("small");
-        const myTeam = roster.find((r) => r.id === myId)?.team;
-        const role = p.team && p.team === myTeam ? "teammate" : p.id === hostId ? "host" : "";
-        note.textContent = p.away ? "away" : p.status === "spectating" ? "next round" : p.status === "caught" ? "caught" : role;
-        li.append(swatch, name, note);
-        return li;
-      }),
-  );
 }
 
-function addFeed(text: string): void {
+// Each catch shows under the banner for a few seconds, newest on top, and
+// only the last few stay so the stack never covers the maze.
+const NOTICE_MS = 4000;
+function notice(text: string): void {
+  const list = $("notices");
   const li = document.createElement("li");
   li.textContent = text;
-  $("feed").prepend(li);
-}
-
-// Your record as a few numbers, and who you're signed in as. A guest's
-// record is kept too, but only in this browser and never on the board.
-async function refreshRecord(): Promise<void> {
-  const [me, board] = await Promise.all([fetch("/api/me"), fetch("/api/board")]);
-  if (me.ok) {
-    const r = await me.json();
-    const who = $("who");
-    who.textContent = r.guest ? `${r.name} (guest)` : r.name;
-    if (!r.guest) {
-      const out = document.createElement("button");
-      out.type = "button";
-      out.className = "quiet";
-      out.textContent = "Sign out";
-      out.addEventListener("click", async () => {
-        await fetch("/api/logout", { method: "POST" });
-        location.reload();
-      });
-      who.append(out);
-    }
-    $("guest-note").hidden = !r.guest;
-    const stats: [string, number][] = [
-      ["played", r.rounds],
-      ["won", r.wins],
-      ["caught others", r.catches],
-      ["got caught", r.caught],
-      ["fell", r.falls],
-      ["win rate", r.rounds ? Math.round((100 * r.wins) / r.rounds) : 0],
-    ];
-    $("record").replaceChildren(
-      ...stats.map(([label, n]) => {
-        const div = document.createElement("div");
-        const dt = document.createElement("dt");
-        dt.textContent = label;
-        const dd = document.createElement("dd");
-        dd.textContent = label === "win rate" ? `${n}%` : String(n);
-        div.append(dt, dd);
-        return div;
-      }),
-    );
-  }
-  if (board.ok) {
-    const { leaders } = (await board.json()) as { leaders: { name: string; catches: number; wins: number }[] };
-    $("board").replaceChildren(
-      ...leaders.map((l) => {
-        const li = document.createElement("li");
-        li.textContent = `${l.name}: ${l.wins} wins, ${l.catches} catches`;
-        return li;
-      }),
-    );
-  }
+  list.prepend(li);
+  while (list.children.length > 3) list.lastElementChild!.remove();
+  setTimeout(() => li.classList.add("gone"), NOTICE_MS);
+  setTimeout(() => li.remove(), NOTICE_MS + 600);
 }
 
 requestAnimationFrame(frame);

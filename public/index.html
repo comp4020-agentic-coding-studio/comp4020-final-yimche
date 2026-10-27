@@ -13,21 +13,23 @@
   </head>
   <body class="game">
     <main class="stage" aria-label="Maze">
-      <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys. Escape opens the menu."></canvas>
+      <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys, and use a powerup with Space."></canvas>
 
-      <!-- what a player needs mid-round, always on screen; the rest is in the menu -->
+      <!-- what a player needs mid-round, always on screen: the room and who's left -->
       <div class="hud">
-        <button id="menu-open" class="hud-menu" type="button" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false" title="Menu (Esc)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-          <span class="visually-hidden">Menu</span>
-        </button>
-        <p class="hud-text">
+        <p class="hud-line">
           <span id="hud-room" class="hud-room" aria-label="Room code">····</span>
-          <span id="hud-count" class="hud-count">No opponents yet</span>
+          <button id="copy" type="button" class="hud-button">Copy link</button>
+          <a class="hud-button" href="/">Other rooms</a>
         </p>
+        <p id="hud-count" class="hud-count">No opponents yet</p>
       </div>
 
-      <div id="banner" class="banner" role="status" aria-live="polite"></div>
+      <!-- the round's state, and under it each catch as it happens, fading after a few seconds -->
+      <div class="top">
+        <div id="banner" class="banner" role="status" aria-live="polite"></div>
+        <ol id="notices" class="notices" aria-live="polite"></ol>
+      </div>
       <div id="lobby" class="lobby" hidden>
         <div id="modes" class="modes" role="radiogroup" aria-label="Game mode">
           <button type="button" data-mode="ffa" role="radio">Free for all</button>
@@ -47,56 +49,6 @@
         <kbd>Space</kbd>
       </button>
     </main>
-
-    <!-- the game menu: everything that isn't needed mid-round. The round keeps
-         running behind it. -->
-    <dialog id="menu" class="menu" aria-labelledby="menu-h">
-      <div class="menu-body">
-        <header class="menu-head">
-          <h1 id="menu-h">Torchlight</h1>
-          <button id="menu-close" type="button" class="quiet close" aria-label="Close the menu" title="Close (Esc)">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
-          </button>
-        </header>
-        <p class="tag">Everyone seeks. Hold your torch on someone's back or side to catch them.</p>
-
-        <section aria-labelledby="room-h">
-          <h2 id="room-h">Room <small id="mode-name" class="mode-name"></small></h2>
-          <p class="room"><span id="room-code" class="code">····</span>
-            <button id="copy" type="button" class="quiet">Copy link</button>
-            <a href="/">Other rooms</a></p>
-        </section>
-        <section aria-labelledby="tracker-h">
-          <h2 id="tracker-h">Still in the dark</h2>
-          <p id="count" class="count">No opponents yet</p>
-          <ul id="roster" class="roster"></ul>
-        </section>
-        <section aria-labelledby="feed-h">
-          <h2 id="feed-h">Catches</h2>
-          <ol id="feed" class="feed" aria-live="polite"></ol>
-        </section>
-        <section aria-labelledby="me-h">
-          <h2 id="me-h">Your record</h2>
-          <p id="who" class="who"></p>
-          <dl id="record" class="record"></dl>
-          <p id="guest-note" class="help" hidden>Playing as a guest: this record stays in this browser and
-            isn't on the board. <button id="make-account" type="button" class="quiet">Make an account</button> to keep it anywhere.</p>
-        </section>
-        <section aria-labelledby="board-h">
-          <h2 id="board-h">Best seekers</h2>
-          <ol id="board" class="board"></ol>
-        </section>
-        <section aria-labelledby="help-h">
-          <h2 id="help-h">How to play</h2>
-          <p class="help">
-            Move with <kbd>WASD</kbd> or the arrows, or drag on the maze. Your torch points at the
-            mouse; on a phone, where you walk. Keep off the floor that falls away once the dark closes in. Walk over a powerup to carry it, one at a time; use it with
-            <kbd>Space</kbd> or by tapping it. <kbd>Esc</kbd> opens and closes this menu.
-          </p>
-          <p class="help"><a href="/readme/">About Torchlight</a></p>
-        </section>
-      </div>
-    </dialog>
 
     <dialog id="join">
       <form method="dialog" id="join-form">

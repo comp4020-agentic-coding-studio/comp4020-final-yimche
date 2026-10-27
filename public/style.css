@@ -1,6 +1,6 @@
 /* The whole page is the night the maze sits in: the canvas fills the screen,
-   and everything else floats over it as a few small labels and one menu of
-   dark glass, so the torchlight stays the brightest thing in view. The README
+   and everything else floats over it as a few small labels of dark glass, so
+   the torchlight stays the brightest thing in view. The README
    page keeps the daylight paper and ink. Square corners everywhere; the only
    round things are the players. */
 :root {
@@ -81,7 +81,7 @@ canvas {
   touch-action: none;
 }
 
-/* the canvas is the whole screen and holds focus whenever the menu is shut,
+/* the canvas is the whole screen and holds focus whenever no dialog is up,
    so a focus ring around it would only frame the page */
 canvas:focus-visible {
   outline: none;
@@ -96,56 +96,53 @@ canvas:focus-visible {
   white-space: nowrap;
 }
 
-/* the always-on corner: the menu button, the room code and who's left to find */
+/* the always-on corner: the room code, its link, and who's left to find */
 .hud {
   position: absolute;
   top: max(0.75rem, env(safe-area-inset-top));
   left: max(0.75rem, env(safe-area-inset-left));
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  max-width: calc(50% - 1rem);
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: calc(100% - 1.5rem);
   color: #e6e8ee;
   pointer-events: none;
 }
 
-.hud-menu {
-  pointer-events: auto;
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  flex: none;
-  background: rgb(14 18 28 / 0.72);
-  border: 1px solid rgb(255 255 255 / 0.16);
-  color: #e6e8ee;
-}
-
-.hud-menu svg,
-.close svg {
-  width: 1.15rem;
-  height: 1.15rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.hud-text {
+.hud p {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.8);
-  min-width: 0;
+}
+
+.hud-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
 .hud-room {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-weight: 600;
   letter-spacing: 0.12em;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
+  margin-right: 0.2rem;
+}
+
+/* the small labelled buttons in the corner, a link among them */
+.hud-button {
+  pointer-events: auto;
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.3;
+  background: rgb(14 18 28 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  color: #e6e8ee;
+  text-decoration: none;
+  text-shadow: none;
 }
 
 .hud-count {
@@ -156,11 +153,21 @@ canvas:focus-visible {
   text-overflow: ellipsis;
 }
 
-.banner {
+/* the banner and the catch notices under it, centred at the top */
+.top {
   position: absolute;
   top: 0.9rem;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: calc(100% - 1.5rem);
+  pointer-events: none;
+}
+
+.banner {
   background: rgb(250 248 243 / 0.94);
   color: #1d2230;
   padding: 0.4rem 0.9rem;
@@ -173,6 +180,30 @@ canvas:focus-visible {
 
 .banner:empty {
   display: none;
+}
+
+.notices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.notices li {
+  background: rgb(14 18 28 / 0.8);
+  color: #e6e8ee;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.85rem;
+  text-align: center;
+  transition: opacity 0.6s;
+}
+
+.notices li.gone {
+  opacity: 0;
 }
 
 /* the one powerup you're carrying, at the bottom of the maze */
@@ -262,181 +293,7 @@ canvas:focus-visible {
   background: var(--running, transparent);
 }
 
-/* The game menu: a panel of dark glass down the right side, over the round
-   that keeps running behind it. Night colours in both schemes, since it
-   always sits over the maze. */
-.menu {
-  --surface: rgb(20 25 38 / 0.94);
-  --ink: #e6e8ee;
-  --muted: #9aa1b3;
-  --line: rgb(255 255 255 / 0.12);
-  --accent: #72b4cb;
-  --accent-ink: #0e1a20;
-  --bg: rgb(255 255 255 / 0.04);
-  color-scheme: dark;
-  position: fixed;
-  inset: 0 0 0 auto;
-  margin: 0;
-  width: min(22rem, 100vw);
-  height: 100dvh;
-  max-height: none;
-  max-width: 100vw;
-  padding: 0;
-  border: 0;
-  border-left: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: -12px 0 40px rgb(0 0 0 / 0.45);
-  backdrop-filter: blur(6px);
-}
 
-.menu::backdrop {
-  background: rgb(4 5 10 / 0.25);
-  backdrop-filter: none;
-}
-
-.menu-body {
-  height: 100%;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: max(1rem, env(safe-area-inset-top)) 1.25rem max(1.25rem, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-}
-
-.menu-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.menu h1 {
-  margin: 0;
-  font-family: "Fraunces", Georgia, serif;
-  font-weight: 600;
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
-}
-
-.close {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-}
-
-.tag {
-  margin: -0.6rem 0 0;
-  color: var(--muted);
-}
-
-.menu .help button {
-  padding: 0.1rem 0.45rem;
-  font-size: 0.85rem;
-}
-
-.menu section {
-  border-top: 1px solid var(--line);
-  padding-top: 0.85rem;
-}
-
-.menu h2 {
-  font-family: "Inter", system-ui, sans-serif;
-  margin: 0 0 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.count {
-  font-family: "Fraunces", Georgia, serif;
-  font-size: 1.35rem;
-  margin: 0 0 0.4rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.roster,
-.feed,
-.board {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.roster li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.2rem 0;
-}
-
-.roster .swatch {
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 50%;
-  flex: none;
-}
-
-.roster span:not(.swatch) {
-  flex: 1;
-}
-
-.roster .caught {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-
-.roster small,
-.feed small {
-  color: var(--muted);
-}
-
-.feed li,
-.board li {
-  padding: 0.2rem 0;
-  border-top: 1px solid var(--line);
-}
-
-.feed li:first-child,
-.board li:first-child {
-  border-top: 0;
-}
-
-.feed:empty::before {
-  content: "Nobody caught yet";
-  color: var(--muted);
-}
-
-.board {
-  counter-reset: rank;
-}
-
-.board:empty::before {
-  content: "Nobody on the board yet";
-  color: var(--muted);
-}
-
-.board li::before {
-  counter-increment: rank;
-  content: counter(rank);
-  display: inline-block;
-  width: 1.4rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-#record {
-  margin: 0;
-}
-
-.help {
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin: 0.4rem 0 0;
-}
 
 kbd {
   font: inherit;
@@ -551,48 +408,6 @@ button:hover:not(:disabled) {
   opacity: 1;
 }
 
-.mode-name {
-  font-family: Inter, system-ui, sans-serif;
-  font-weight: 500;
-  font-size: 0.8rem;
-  color: var(--muted);
-  margin-left: 0.4rem;
-}
-
-.who {
-  margin: 0 0 0.4rem;
-  font-weight: 600;
-}
-
-.who button {
-  padding: 0.15rem 0.5rem;
-  font-size: 0.8rem;
-  margin-left: 0.4rem;
-}
-
-.record {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.4rem;
-  margin: 0;
-}
-
-.record div {
-  display: flex;
-  flex-direction: column-reverse;
-}
-
-.record dt {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.record dd {
-  margin: 0;
-  font-size: 1.15rem;
-  font-weight: 600;
-}
-
 .team-red {
   color: #f08a6c;
 }
@@ -619,26 +434,6 @@ button.quiet {
   font-weight: 500;
 }
 
-.room {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  margin: 0;
-}
-
-.room button {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.85rem;
-}
-
-.code {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  margin-right: auto;
-}
 
 .room-list {
   margin: 0;
@@ -673,22 +468,18 @@ button.quiet {
 
 /* once a long banner could reach the corner, it drops below it instead */
 @media (max-width: 900px) {
+  .top {
+    top: calc(max(0.75rem, env(safe-area-inset-top)) + 3.6rem);
+    width: max-content;
+  }
+
   .banner {
-    top: calc(max(0.75rem, env(safe-area-inset-top)) + 2.9rem);
-    max-width: calc(100% - 1.5rem);
     white-space: normal;
     text-align: center;
-    width: max-content;
   }
 }
 
-/* on a phone the menu is a full width sheet */
 @media (max-width: 600px) {
-  .menu {
-    width: 100vw;
-    border-left: 0;
-  }
-
   .slot kbd {
     display: none;
   }
