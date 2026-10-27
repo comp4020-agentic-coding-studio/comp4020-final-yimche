@@ -924,6 +924,53 @@ describe("teams: two sides, and the last side standing wins together", () => {
   });
 });
 
+describe("the host can pick a hand-made map", () => {
+  // a long thin hall, nothing like a generated maze, so it's plain which one a round got
+  const hall = {
+    id: 7,
+    name: "Long hall",
+    rows: Array.from({ length: 11 }, (_, y) => (y === 0 || y === 10 ? "#".repeat(31) : "#" + ".".repeat(29) + "#")),
+  };
+
+  it("a round on a picked map plays on that map at its own size, whoever turns up", () => {
+    for (const players of [2, 5]) {
+      const game = new Game(hooks());
+      for (let i = 0; i < players; i++) game.join(`p${i}`, `P${i}`, 0);
+      expect(game.setMap("p0", hall)).toBe(true);
+      game.start("p0", 0);
+      expect(game.maze.rows).toEqual(hall.rows);
+      game.tick(10_000, 0.05);
+      expect(game.phase).toBe("playing");
+      for (const p of game.alive()) expect(hall.rows[Math.floor(p.y)][Math.floor(p.x)]).toBe(".");
+      for (const it of game.pickups) expect(hall.rows[Math.floor(it.y)][Math.floor(it.x)]).toBe(".");
+    }
+  });
+
+  it("only the host can pick the map, only in the lobby, and everyone is told which", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    expect(game.setMap("b", hall)).toBe(false);
+    expect(game.roster().map).toBe(null);
+    expect(game.setMap("a", hall)).toBe(true);
+    expect(game.roster().map).toEqual({ id: 7, name: "Long hall" });
+    game.start("a", 0);
+    expect(game.setMap("a", null)).toBe(false); // not mid-countdown
+  });
+
+  it("going back to no map gets a fresh maze sized for the room again", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    game.setMap("a", hall);
+    expect(game.setMap("a", null)).toBe(true);
+    expect(game.roster().map).toBe(null);
+    game.start("a", 0);
+    expect(game.maze.rows).not.toEqual(hall.rows);
+    expect(game.maze.w).toBe(game.maze.h);
+  });
+});
+
 describe("one v one: two play, the rest wait their turn", () => {
   it("only the first two in line play; everyone else watches", () => {
     const { p } = playingMode("duel", ["a", "b", "c"]);

@@ -1,3 +1,4 @@
+import { toMaze } from "../shared/maps.ts";
 import { generateMaze, mazeCells, rng } from "./maze.ts";
 import {
   BEAM_RANGE,
@@ -48,6 +49,13 @@ export type Status = "alive" | "caught" | "spectating";
 export type Mode = "ffa" | "teams" | "duel";
 export type Team = "red" | "blue";
 export const MODES: Mode[] = ["ffa", "teams", "duel"];
+
+// A hand-made map from the shared library, as the host picked it.
+export interface PickedMap {
+  id: number;
+  name: string;
+  rows: string[];
+}
 
 export const COUNTDOWN_MS = 3000;
 export const ENDED_MS = 5000;
@@ -116,6 +124,8 @@ const reach = (p: Player, now: number) => (p.dimmedUntil > now ? BEAM_RANGE * BL
 export class Game {
   phase: Phase = "waiting";
   mode: Mode = "ffa";
+  // the hand-made map the host picked, or null for a fresh maze each round
+  map: PickedMap | null = null;
   phaseEndsAt = 0;
   maze: Maze;
   roundId = 0;
@@ -518,6 +528,16 @@ export class Game {
     return true;
   }
 
+  // The host picks a map from the library, or none, in the lobby only. A
+  // picked map is played at its own size, however many turn up. Returns
+  // whether it changed.
+  setMap(id: string, map: PickedMap | null): boolean {
+    if (id !== this.hostId || this.phase !== "waiting") return false;
+    this.map = map;
+    this.rosterVersion++;
+    return true;
+  }
+
   start(id: string, now: number): boolean {
     if (id !== this.hostId || this.phase !== "waiting" || this.present().length < MIN_PLAYERS) return false;
     this.startCountdown(now);
@@ -606,8 +626,9 @@ export class Game {
     const dealt = [...players].sort(() => Math.random() - 0.5);
     for (const p of this.players.values()) p.team = null;
     if (this.mode === "teams") dealt.forEach((p, i) => (p.team = i % 2 === 0 ? "red" : "blue"));
-    // the maze grows with the room so a crowd still has space to hide
-    this.maze = generateMaze(mazeCells(players.length), this.seed);
+    // a picked map as it was drawn; otherwise the maze grows with the room so
+    // a crowd still has space to hide
+    this.maze = this.map ? toMaze(this.map.rows) : generateMaze(mazeCells(players.length), this.seed);
     this.winner = null;
     this.winnerTeam = null;
     for (const p of players) {
@@ -734,6 +755,7 @@ export class Game {
       t: "roster" as const,
       host: this.hostId,
       mode: this.mode,
+      map: this.map && { id: this.map.id, name: this.map.name },
       alive: this.alive().length,
       total: [...this.players.values()].filter((p) => p.status !== "spectating").length,
       players: [...this.players.values()].map((p) => ({

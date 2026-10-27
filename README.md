@@ -93,10 +93,11 @@ still in the dark wins the round.
    out of the round. Nobody gets a catch for that. A countdown in the corner
    warns you for the last ten seconds before the floor starts to fall.
 
-The maze is sized for the room when the host presses Start: about fifty
-rooms of maze per player, so two players keep running into each other and
-six have as much space each as two, up to a size that still fits on a phone.
-Bigger mazes get more open halls, not just more corridor.
+Unless the host has picked a map, the maze is sized for the room when the
+host presses Start: about fifty rooms of maze per player, so two players
+keep running into each other and six have as much space each as two, up to a
+size that still fits on a phone. Bigger mazes get more open halls, not just
+more corridor.
 
 Maps can be hand-made too, and saved to a library everyone shares. A map
 is 11 to 41 squares each way, an odd number, walled all the way round, with
@@ -104,7 +105,11 @@ no floor sealed off from the rest and at least twelve of the marked spots
 open, since those are where players start and powerups land. The server
 checks every map against these rules before it goes in the library, and says
 what's wrong with one that doesn't. Saving a map takes a name, the same as
-playing, and the map is listed under it.
+playing, and the map is listed under it. In the lobby the host can pick any
+map in the library, under the mode buttons, and everyone in the room sees
+which. A round on a picked map is played on it exactly as drawn, at its own
+size, however many turn up; picking Fresh maze goes back to a new maze each
+round, sized for the room.
 
 Anyone who arrives mid-round watches and joins the next one. When a round
 ends, everyone is back in the lobby, wandering the old maze, until the host

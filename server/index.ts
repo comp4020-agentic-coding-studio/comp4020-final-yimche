@@ -287,6 +287,12 @@ server.on("upgrade", (req, socket, head) => {
         }
         if (msg.t === "start") game.start(player.id, Date.now());
         if (msg.t === "mode") game.setMode(player.id, msg.mode);
+        // a map from the library by its id, or null for a fresh maze each round
+        if (msg.t === "map") {
+          const map = typeof msg.id === "number" ? store.map(msg.id) : undefined;
+          if (msg.id === null) game.setMap(player.id, null);
+          else if (map) game.setMap(player.id, { id: map.id, name: map.name, rows: map.rows });
+        }
         if (msg.t === "use") game.use(player.id, Date.now());
       } catch {
         // ignore anything that isn't our protocol

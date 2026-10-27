@@ -78,6 +78,8 @@ let roster: RosterEntry[] = [];
 let winner: string | null = null;
 let winnerTeam: Team | null = null;
 let mode: Mode = "ffa";
+// the hand-made map the host picked for the room, or null for a fresh maze
+let roomMap: { id: number; name: string } | null = null;
 const MODE_NAMES: Record<Mode, string> = { ffa: "Free for all", teams: "Teams", duel: "One v one" };
 const TEAM_NAMES: Record<Team, string> = { red: "Red", blue: "Blue" };
 // The night the maze is drawn in, and a colour for each player so you can
@@ -259,6 +261,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
       roster = msg.players;
       hostId = msg.host;
       mode = msg.mode;
+      roomMap = msg.map;
       renderRoster();
       break;
     case "catch":
@@ -674,6 +677,12 @@ function startButton(s: State): void {
   if (button.hidden === host) button.hidden = !host;
   const ready = roster.filter((p) => !p.away).length >= 2;
   if (button.disabled === ready) button.disabled = !ready;
+  const mapLabel = roomMap ? roomMap.name : "Fresh maze";
+  const pick = $<HTMLButtonElement>("map-pick");
+  if (pick.hidden === host) pick.hidden = !host;
+  if ($("map-name").hidden !== host) $("map-name").hidden = host;
+  if (pick.textContent !== mapLabel) pick.textContent = mapLabel;
+  if ($("map-name").textContent !== mapLabel) $("map-name").textContent = mapLabel;
   for (const b of $("modes").querySelectorAll<HTMLButtonElement>("button")) {
     const on = String(b.dataset.mode === mode);
     if (b.getAttribute("aria-checked") !== on) b.setAttribute("aria-checked", on);
@@ -693,6 +702,40 @@ $("modes").addEventListener("click", (e) => {
 
 // The room's link, for sending to friends. Where the clipboard is refused,
 // the link is offered to copy by hand instead.
+// The host's map picker: a fresh maze, or any map in the shared library,
+// newest first. The pick goes to the server, which tells the whole room.
+const mapsDialog = $<HTMLDialogElement>("maps");
+function pickMap(id: number | null): void {
+  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "map", id }));
+  mapsDialog.close();
+}
+$("map-pick").addEventListener("click", async () => {
+  const { maps } = (await (await fetch("/api/maps")).json()) as {
+    maps: { id: number; name: string; author: string; w: number; h: number }[];
+  };
+  const item = (label: string, note: string, id: number | null) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "quiet";
+    b.textContent = label;
+    b.setAttribute("aria-pressed", String((roomMap?.id ?? null) === id));
+    b.addEventListener("click", () => pickMap(id));
+    const small = document.createElement("small");
+    small.textContent = note;
+    li.append(b, small);
+    return li;
+  };
+  $("map-list").replaceChildren(
+    item("Fresh maze", "a new maze each round, sized for the room", null),
+    ...maps.map((m) => item(m.name, `by ${m.author}, ${m.w} by ${m.h}`, m.id)),
+  );
+  keys.clear();
+  mapsDialog.showModal();
+});
+$("maps-close").addEventListener("click", () => mapsDialog.close());
+mapsDialog.addEventListener("close", () => canvas.focus());
+
 $("copy").addEventListener("click", async () => {
   const button = $("copy");
   try {

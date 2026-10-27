@@ -649,6 +649,66 @@ button:hover:not(:disabled) {
   opacity: 1;
 }
 
+/* which map the room plays on, under the modes */
+.map-line {
+  margin: 0;
+  color: #e6e8ee;
+  font-size: 0.85rem;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.8);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.map-pick {
+  background: rgb(19 24 36 / 0.8);
+  border-color: rgb(255 255 255 / 0.25);
+  color: #eef0f5;
+  font-weight: 500;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+}
+
+.map-name {
+  font-weight: 600;
+}
+
+.map-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 50dvh;
+  overflow-y: auto;
+}
+
+.map-list li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.map-list li:first-child {
+  border-top: 0;
+}
+
+.map-list button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.map-list small,
+.maps-note {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.maps-note {
+  margin: 0.25rem 0 0;
+}
+
 .team-red {
   color: #f08a6c;
 }

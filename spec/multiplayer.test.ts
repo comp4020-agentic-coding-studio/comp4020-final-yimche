@@ -197,3 +197,35 @@ it("saving a map takes a name first, like playing does", async () => {
 it("a map nobody saved isn't there", async () => {
   expect((await fetch(new URL("/api/maps/999999", baseUrl))).status).toBe(404);
 });
+
+it("the host picks a saved map in the lobby, everyone in the room hears which, and the round is played on it", async () => {
+  const hostCookie = await signUp("cartographer");
+  const name = `Wide ${unique()}`;
+  const { id } = await (await post("/api/maps", { name, rows: openMap(21, 11) }, hostCookie)).json();
+  const room = await newRoom();
+  const host = await open(hostCookie, room);
+  const guest = await open(await signUp("tourist"), room);
+  await within(1000, () => guest.messages.find((m) => m.t === "roster" && m.players.length === 2));
+  host.ws.send(JSON.stringify({ t: "map", id }));
+  await within(1000, () => guest.messages.find((m) => m.t === "roster" && m.map?.id === id && m.map.name === name));
+  host.ws.send(JSON.stringify({ t: "start" }));
+  const round = await within(1000, () => guest.messages.find((m) => m.t === "round" && m.phase === "countdown"));
+  expect(round.maze).toEqual(openMap(21, 11));
+  host.ws.close();
+  guest.ws.close();
+});
+
+it("only the host's pick counts, and a map that isn't in the library is ignored", async () => {
+  const room = await newRoom();
+  const host = await open(await signUp("boss"), room);
+  const guestCookie = await signUp("meddler");
+  const guest = await open(guestCookie, room);
+  const { id } = await (await post("/api/maps", { name: "Meddling", rows: openMap() }, guestCookie)).json();
+  await within(1000, () => host.messages.find((m) => m.t === "roster" && m.players.length === 2));
+  guest.ws.send(JSON.stringify({ t: "map", id }));
+  host.ws.send(JSON.stringify({ t: "map", id: 999999 }));
+  await new Promise((r) => setTimeout(r, 300));
+  expect(host.messages.filter((m) => m.t === "roster").every((m) => m.map === null)).toBe(true);
+  host.ws.close();
+  guest.ws.close();
+});
