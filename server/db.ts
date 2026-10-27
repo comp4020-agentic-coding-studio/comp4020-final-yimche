@@ -67,6 +67,22 @@ db.exec(`
   );
 `);
 
+// The shared library of hand-made maps. A map keeps the name its maker had
+// when they saved it, so it outlives a guest who's forgotten; rows are the
+// map's lines of "#" and ".", joined by newlines.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS maps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    author TEXT NOT NULL,
+    author_id TEXT,
+    w INTEGER NOT NULL,
+    h INTEGER NOT NULL,
+    rows TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+`);
+
 // Guests who haven't been back in a month are forgotten, record and all. A
 // catch between them and someone else stays on the other one's record.
 const MONTH = 30 * 24 * 60 * 60 * 1000;
@@ -76,6 +92,7 @@ db.prepare(`DELETE FROM sessions WHERE player_id IN ${stale}`).run(cutoff);
 db.prepare(`DELETE FROM round_players WHERE player_id IN ${stale}`).run(cutoff);
 db.prepare(`UPDATE catches SET catcher_id = NULL WHERE catcher_id IN ${stale}`).run(cutoff);
 db.prepare(`UPDATE catches SET caught_id = NULL WHERE caught_id IN ${stale}`).run(cutoff);
+db.prepare(`UPDATE maps SET author_id = NULL WHERE author_id IN ${stale}`).run(cutoff);
 db.prepare(`DELETE FROM players WHERE id IN ${stale}`).run(cutoff);
 
 export interface PlayerRow {
@@ -134,7 +151,19 @@ const q = {
     WHERE rounds > 0
     ORDER BY wins DESC, catches DESC
     LIMIT 10`),
+  addMap: db.prepare("INSERT INTO maps (name, author, author_id, w, h, rows, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"),
+  maps: db.prepare("SELECT id, name, author, w, h, created_at AS createdAt FROM maps ORDER BY id DESC LIMIT 100"),
+  map: db.prepare("SELECT id, name, author, w, h, rows FROM maps WHERE id = ?"),
 };
+
+export interface MapRow {
+  id: number;
+  name: string;
+  author: string;
+  w: number;
+  h: number;
+  rows: string[];
+}
 
 export const store = {
   session: (token: string): PlayerRow | undefined => {
@@ -173,4 +202,12 @@ export const store = {
     return { ...row, guest: row.guest === 1, modes };
   },
   leaderboard: () => q.leaderboard.all() as { name: string; rounds: number; wins: number; catches: number }[],
+  addMap: (name: string, author: PlayerRow, rows: string[]) =>
+    Number(q.addMap.run(name, author.name, author.id, rows[0].length, rows.length, rows.join("\n"), Date.now()).lastInsertRowid),
+  // the newest hundred, without their rows, for picking from
+  maps: () => q.maps.all() as Omit<MapRow, "rows">[],
+  map: (id: number): MapRow | undefined => {
+    const row = q.map.get(id) as (Omit<MapRow, "rows"> & { rows: string }) | undefined;
+    return row && { ...row, rows: row.rows.split("\n") };
+  },
 };

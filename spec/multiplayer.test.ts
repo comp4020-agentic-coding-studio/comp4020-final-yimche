@@ -163,3 +163,37 @@ it("guests never show up on the board", async () => {
   expect(JSON.stringify(leaders)).not.toContain(id);
   expect(leaders.every((l: any) => l.name !== "ghostly")).toBe(true);
 });
+
+// The shared library of hand-made maps: anyone with a name can save one, and
+// everyone sees every map saved.
+const openMap = (w = 13, h = 11) =>
+  Array.from({ length: h }, (_, y) => (y === 0 || y === h - 1 ? "#".repeat(w) : "#" + ".".repeat(w - 2) + "#"));
+
+it("a saved map goes in the shared library, with who made it, for everyone to see", async () => {
+  const cookie = await signUp("mapmaker");
+  const name = `Hall ${unique()}`;
+  const saved = await post("/api/maps", { name, rows: openMap() }, cookie);
+  expect(saved.status).toBe(200);
+  const { id } = await saved.json();
+  const { maps } = await (await fetch(new URL("/api/maps", baseUrl))).json();
+  expect(maps).toContainEqual(expect.objectContaining({ id, name, author: "mapmaker", w: 13, h: 11 }));
+  const one = await (await fetch(new URL(`/api/maps/${id}`, baseUrl))).json();
+  expect(one).toMatchObject({ id, name, author: "mapmaker", rows: openMap() });
+});
+
+it("a map that can't be played is turned away, and says why", async () => {
+  const cookie = await signUp("sloppy");
+  const leaky = openMap().map((r, y) => (y === 5 ? "." + r.slice(1) : r));
+  const res = await post("/api/maps", { name: "Leaky", rows: leaky }, cookie);
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toMatch(/outside edge/);
+  expect((await post("/api/maps", { name: "  ", rows: openMap() }, cookie)).status).toBe(400);
+});
+
+it("saving a map takes a name first, like playing does", async () => {
+  expect((await post("/api/maps", { name: "Nobody's", rows: openMap() })).status).toBe(401);
+});
+
+it("a map nobody saved isn't there", async () => {
+  expect((await fetch(new URL("/api/maps/999999", baseUrl))).status).toBe(404);
+});

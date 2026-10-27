@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize } from "node:path";
 import { marked } from "marked";
 import { WebSocketServer, type WebSocket } from "ws";
+import { cleanMapName, mapProblem } from "../shared/maps.ts";
 import { store } from "./db.ts";
 import { Game, type Mode } from "./game.ts";
 
@@ -82,11 +83,12 @@ function serveStatic(res: ServerResponse, root: string, path: string): boolean {
   return true;
 }
 
-async function readBody(req: IncomingMessage): Promise<string> {
+// Bodies are small: a name, a password, or at most one map of 41 by 41.
+async function readBody(req: IncomingMessage, limit = 1000): Promise<string> {
   let data = "";
   for await (const chunk of req) {
     data += chunk;
-    if (data.length > 1000) throw new Error("body too large");
+    if (data.length > limit) throw new Error("body too large");
   }
   return data;
 }
@@ -125,9 +127,9 @@ function sessionCookie(req: IncomingMessage, playerId: string): Record<string, s
   return { "set-cookie": `sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure}` };
 }
 
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJson(req: IncomingMessage, limit?: number): Promise<Record<string, unknown>> {
   try {
-    const body = JSON.parse(await readBody(req));
+    const body = JSON.parse(await readBody(req, limit));
     return body && typeof body === "object" ? body : {};
   } catch {
     return {};
@@ -217,6 +219,26 @@ const server = createServer(async (req, res) => {
   }
   if (url.pathname === "/api/board") {
     return json(res, 200, { leaders: store.leaderboard() });
+  }
+  // The shared map library. Saving takes a name, as playing does; the map is
+  // checked here against the same rules the editor shows, so only a playable
+  // map gets in.
+  if (url.pathname === "/api/maps" && req.method === "GET") {
+    return json(res, 200, { maps: store.maps() });
+  }
+  if (url.pathname === "/api/maps" && req.method === "POST") {
+    if (!player) return json(res, 401, { error: "give yourself a name before saving a map" });
+    const body = await readJson(req, 4000);
+    const name = cleanMapName(body.name);
+    if (!name) return json(res, 400, { error: "a map's name is 1 to 24 characters" });
+    const problem = mapProblem(body.rows);
+    if (problem) return json(res, 400, { error: problem });
+    return json(res, 200, { id: store.addMap(name, player, body.rows as string[]) });
+  }
+  const mapId = url.pathname.match(/^\/api\/maps\/(\d+)$/)?.[1];
+  if (mapId && req.method === "GET") {
+    const map = store.map(Number(mapId));
+    return map ? json(res, 200, map) : json(res, 404, { error: "no such map" });
   }
   if (serveStatic(res, PUBLIC, url.pathname === "/" ? "index.html" : url.pathname)) return;
   res.writeHead(404, { "content-type": "text/plain" });
