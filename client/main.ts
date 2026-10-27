@@ -122,13 +122,21 @@ $<HTMLFormElement>("join-form").addEventListener("submit", async (e) => {
   enter();
 });
 
-// The account dialog serves signing in and signing up from scratch.
-function openAccount(): void {
+// The account dialog serves signing in, signing up from scratch, and a guest
+// making an account mid-game (who keeps their player, so stays in the room).
+let accountFromGame = false;
+function openAccount(fromGame: boolean): void {
+  accountFromGame = fromGame;
   $("account-error").textContent = "";
+  $("account-back").hidden = fromGame;
   $<HTMLDialogElement>("join").close();
   $<HTMLDialogElement>("account").showModal();
 }
-$("to-account").addEventListener("click", openAccount);
+$("to-account").addEventListener("click", () => openAccount(false));
+$("make-account").addEventListener("click", () => {
+  $<HTMLDialogElement>("window").close();
+  openAccount(true);
+});
 $("account-back").addEventListener("click", () => {
   $<HTMLDialogElement>("account").close();
   $<HTMLDialogElement>("join").showModal();
@@ -141,7 +149,11 @@ async function account(path: "/api/login" | "/api/signup"): Promise<void> {
     return;
   }
   $<HTMLDialogElement>("account").close();
-  enter();
+  // signing in as someone else needs a fresh socket under the new player;
+  // a guest upgrading is the same player, so only the record changes
+  if (accountFromGame && path === "/api/signup") openWindow("scores");
+  else if (socket) location.reload();
+  else enter();
 }
 $<HTMLFormElement>("account-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -213,6 +225,7 @@ function connect(): void {
     setTimeout(connect, retry);
     retry = Math.min(retry * 2, 5000);
   };
+  refreshRecord();
   canvas.focus();
   if (firstVisit) {
     firstVisit = false;
@@ -234,6 +247,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
       winner = msg.winner;
       winnerTeam = msg.winnerTeam;
       if (msg.phase === "countdown") $("notices").replaceChildren();
+      if (msg.phase === "ended") refreshRecord();
       resize();
       break;
     }
@@ -804,6 +818,7 @@ const win = $<HTMLDialogElement>("window");
 const tabs = [...win.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
 
 function showTab(name: string, focus = false): void {
+  if (name === "scores") refreshRecord();
   for (const tab of tabs) {
     const on = tab.id === `tab-${name}`;
     tab.setAttribute("aria-selected", String(on));
@@ -832,6 +847,7 @@ win.addEventListener("click", (e) => {
   if (e.target === win && !inside) win.close();
 });
 $("open-help").addEventListener("click", () => openWindow("help"));
+$("open-scores").addEventListener("click", () => openWindow("scores"));
 
 // the tabs are picked by clicking, or with the arrow keys once one has focus
 for (const tab of tabs) tab.addEventListener("click", () => showTab(tab.id.slice(4)));
@@ -842,6 +858,60 @@ win.querySelector('[role="tablist"]')!.addEventListener("keydown", (e) => {
   const at = tabs.findIndex((t) => t.getAttribute("aria-selected") === "true");
   showTab(tabs[(at + step + tabs.length) % tabs.length].id.slice(4), true);
 });
+
+// ---------- the scores tab ----------
+
+// Your record as a few numbers, and who you're signed in as. A guest's
+// record is kept too, but only in this browser and never on the board.
+async function refreshRecord(): Promise<void> {
+  const [me, board] = await Promise.all([fetch("/api/me"), fetch("/api/board")]);
+  if (me.ok) {
+    const r = await me.json();
+    const who = $("who");
+    who.textContent = r.guest ? `${r.name} (guest)` : r.name;
+    if (!r.guest) {
+      const out = document.createElement("button");
+      out.type = "button";
+      out.className = "quiet";
+      out.textContent = "Sign out";
+      out.addEventListener("click", async () => {
+        await fetch("/api/logout", { method: "POST" });
+        location.reload();
+      });
+      who.append(out);
+    }
+    $("guest-note").hidden = !r.guest;
+    const stats: [string, number][] = [
+      ["played", r.rounds],
+      ["won", r.wins],
+      ["caught others", r.catches],
+      ["got caught", r.caught],
+      ["fell", r.falls],
+      ["win rate", r.rounds ? Math.round((100 * r.wins) / r.rounds) : 0],
+    ];
+    $("record").replaceChildren(
+      ...stats.map(([label, n]) => {
+        const div = document.createElement("div");
+        const dt = document.createElement("dt");
+        dt.textContent = label;
+        const dd = document.createElement("dd");
+        dd.textContent = label === "win rate" ? `${n}%` : String(n);
+        div.append(dt, dd);
+        return div;
+      }),
+    );
+  }
+  if (board.ok) {
+    const { leaders } = (await board.json()) as { leaders: { name: string; catches: number; wins: number }[] };
+    $("board").replaceChildren(
+      ...leaders.map((l) => {
+        const li = document.createElement("li");
+        li.textContent = `${l.name}: ${l.wins} wins, ${l.catches} catches`;
+        return li;
+      }),
+    );
+  }
+}
 
 requestAnimationFrame(frame);
 start();

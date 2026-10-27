@@ -22,6 +22,7 @@
           <button id="copy" type="button" class="hud-button">Copy link</button>
           <a class="hud-button" href="/">Other rooms</a>
           <button id="open-help" type="button" class="hud-button" aria-haspopup="dialog" aria-controls="window">How to play</button>
+          <button id="open-scores" type="button" class="hud-button" aria-haspopup="dialog" aria-controls="window">Scores</button>
         </p>
         <p id="hud-count" class="hud-count">No opponents yet</p>
       </div>
@@ -62,6 +63,7 @@
       </header>
       <div class="tabs" role="tablist" aria-label="Torchlight">
         <button id="tab-help" type="button" role="tab" aria-controls="panel-help">How to play</button>
+        <button id="tab-scores" type="button" role="tab" aria-controls="panel-scores">Scores</button>
       </div>
       <section id="panel-help" class="panel help" role="tabpanel" aria-labelledby="tab-help" tabindex="0">
         <p class="lede">Everyone seeks. Hold your torch on someone's back or side to catch them, and don't let them do it to you.</p>
@@ -87,6 +89,15 @@
         <p>A minute in, the floor starts falling away from the edges toward the middle. A tile shakes and glows red
           before it goes; step onto a fallen one and you're out.</p>
         <p class="more"><a href="/readme/">The full rules</a></p>
+      </section>
+      <section id="panel-scores" class="panel scores" role="tabpanel" aria-labelledby="tab-scores" tabindex="0" hidden>
+        <h3>Your record</h3>
+        <p id="who" class="who"></p>
+        <dl id="record" class="record"></dl>
+        <p id="guest-note" class="note" hidden>Playing as a guest: this record stays in this browser and
+          isn't on the board. <button id="make-account" type="button" class="quiet">Make an account</button> to keep it anywhere.</p>
+        <h3>Best seekers</h3>
+        <ol id="board" class="board"></ol>
       </section>
     </dialog>
 

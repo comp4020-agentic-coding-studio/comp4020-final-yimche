@@ -435,6 +435,99 @@ canvas:focus-visible {
   margin: 1rem 0 0;
 }
 
+/* the scores tab: who you are, your numbers, and the board */
+.scores h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.scores .board {
+  margin-bottom: 0;
+}
+
+.scores h3:not(:first-child) {
+  margin-top: 1.25rem;
+}
+
+.who {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.who button,
+.note button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.record {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem 0.4rem;
+  margin: 0;
+}
+
+.record div {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.record dt {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.record dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.75rem 0 0;
+}
+
+.board {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: rank;
+}
+
+.board li {
+  padding: 0.3rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.board li:first-child {
+  border-top: 0;
+}
+
+.board li::before {
+  counter-increment: rank;
+  content: counter(rank);
+  display: inline-block;
+  width: 1.6rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.board:empty::before {
+  content: "Nobody on the board yet";
+  color: var(--muted);
+}
+
 kbd {
   font: inherit;
   font-size: 0.8em;
@@ -619,7 +712,12 @@ button.quiet {
   }
 }
 
+/* on a phone the corner's buttons can take two rows, so the banner drops further */
 @media (max-width: 600px) {
+  .top {
+    top: calc(max(0.75rem, env(safe-area-inset-top)) + 5.5rem);
+  }
+
   .slot kbd {
     display: none;
   }
