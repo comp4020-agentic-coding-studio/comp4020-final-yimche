@@ -1,4 +1,5 @@
 import { MAP_MAX, MAP_MIN, isSpot, mapProblem, unreachable } from "../shared/maps.ts";
+import { openMapTable } from "./maptable.ts";
 
 // The map editor, at /?edit. A grid of walls and floor you paint by clicking
 // or dragging, with the same checks the server makes shown live as you draw,
@@ -218,37 +219,21 @@ export function startEditor(): void {
   $("ed-save").addEventListener("click", save);
 
   // Opening a map from the library starts a copy of it; saving makes a new map.
-  $("ed-load").addEventListener("click", async () => {
-    const { maps } = (await (await fetch("/api/maps")).json()) as {
-      maps: { id: number; name: string; author: string; w: number; h: number }[];
-    };
-    const dialog = $<HTMLDialogElement>("maps");
-    $("maps-h").textContent = "Open a map";
-    $("maps-note").textContent = maps.length === 0 ? "Nobody has saved a map yet." : "Saving it again makes a new copy.";
-    $("map-list").replaceChildren(
-      ...maps.map((m) => {
-        const li = document.createElement("li");
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "quiet";
-        b.textContent = m.name;
-        b.addEventListener("click", async () => {
-          const map = (await (await fetch(`/api/maps/${m.id}`)).json()) as { name: string; rows: string[] };
-          rows = map.rows;
-          $<HTMLInputElement>("ed-name").value = map.name;
-          dialog.close();
-          layout();
-          changed();
-        });
-        const small = document.createElement("small");
-        small.textContent = `by ${m.author}, ${m.w} by ${m.h}`;
-        li.append(b, small);
-        return li;
-      }),
-    );
-    dialog.showModal();
-  });
-  $("maps-close").addEventListener("click", () => $<HTMLDialogElement>("maps").close());
+  $("ed-load").addEventListener("click", () =>
+    openMapTable({
+      title: "Open a map",
+      note: "Saving it again makes a new copy.",
+      fresh: false,
+      pick: async (id) => {
+        const opened = (await (await fetch(`/api/maps/${id}`)).json()) as { name: string; rows: string[] };
+        rows = opened.rows;
+        $<HTMLInputElement>("ed-name").value = opened.name;
+        $<HTMLDialogElement>("maps").close();
+        layout();
+        changed();
+      },
+    }),
+  );
 
   layout();
   changed();

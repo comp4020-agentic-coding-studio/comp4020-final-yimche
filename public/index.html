@@ -143,14 +143,40 @@
       </section>
     </dialog>
 
-    <!-- the host picks a map for the room from the shared library -->
-    <dialog id="maps" class="maps" aria-labelledby="maps-h">
-      <form method="dialog" id="maps-form">
+    <!-- the host picks a map for the room from the shared library, and the
+         editor opens one to copy: one table of maps, in the window's night look -->
+    <dialog id="maps" class="window maps" aria-labelledby="maps-h">
+      <header class="window-head">
         <h2 id="maps-h">Pick a map</h2>
-        <ul id="map-list" class="map-list"></ul>
-        <p class="maps-note" id="maps-note"><a href="/?edit">Make your own in the map editor</a></p>
-        <button id="maps-close" type="button" class="quiet">Close</button>
-      </form>
+        <button id="maps-close" type="button" class="close" aria-label="Close" title="Close (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <div class="maps-search">
+        <label for="maps-filter" class="visually-hidden">Find a map by name or maker</label>
+        <input id="maps-filter" type="search" placeholder="Find by name or maker" autocomplete="off" />
+      </div>
+      <div id="maps-scroll" class="maps-scroll">
+        <table class="map-table">
+          <caption class="visually-hidden">Maps in the shared library, newest first</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="thumb"><span class="visually-hidden">Picture</span></th>
+              <th scope="col" class="name">Name</th>
+              <th scope="col" class="by">By</th>
+              <th scope="col" class="size">Size</th>
+              <th scope="col" class="added">Added</th>
+            </tr>
+          </thead>
+          <tbody id="map-rows"></tbody>
+        </table>
+        <p id="maps-status" class="maps-status" role="status" hidden></p>
+        <p id="maps-empty" class="maps-empty" hidden>No maps saved yet.<span class="to-editor"> <a href="/?edit">Draw the first one in the map editor</a>.</span></p>
+      </div>
+      <footer class="maps-foot">
+        <p id="maps-note" class="maps-note"></p>
+        <a href="/?edit" class="to-editor">Make your own in the map editor</a>
+      </footer>
     </dialog>
 
     <dialog id="join">

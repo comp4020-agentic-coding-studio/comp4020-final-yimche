@@ -673,40 +673,247 @@ button:hover:not(:disabled) {
   font-weight: 600;
 }
 
-.map-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  max-height: 50dvh;
+/* The map table: the window's night glass, wider, with the header held
+   at the top while the maps scroll beneath it. Each row is one map; the
+   button in its name cell takes focus, the whole row takes the click. */
+.maps {
+  width: min(44rem, calc(100vw - 2rem));
+  max-height: min(42rem, calc(100dvh - 2rem));
+}
+
+.maps-search {
+  padding: 0.75rem 1.25rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.maps-search input {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+}
+
+.maps-scroll {
+  flex: 1 1 auto;
+  min-height: 8rem;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-.map-list li {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  padding: 0.35rem 0;
-  border-top: 1px solid var(--line);
+.map-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.9rem;
 }
 
-.map-list li:first-child {
-  border-top: 0;
+.map-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgb(20 25 38);
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-.map-list button[aria-pressed="true"] {
-  border-color: var(--accent);
+.map-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.map-table th:first-child,
+.map-table td:first-child {
+  padding-left: 1.25rem;
+}
+
+.map-table th:last-child,
+.map-table td:last-child {
+  padding-right: 1.25rem;
+}
+
+.map-table tbody tr {
+  cursor: pointer;
+}
+
+.map-table tbody tr:hover,
+.map-table tbody tr:focus-within {
+  background: rgb(255 255 255 / 0.05);
+}
+
+.map-table tr.playing {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+/* the picture: one pixel a square, scaled up without blur, in a fixed box */
+.map-table th.thumb {
+  width: 5.5rem; /* the picture, its padding and the outer gutter */
+}
+
+.map-table canvas,
+.fresh-thumb {
+  display: block;
+  width: 3.5rem;
+  height: 2.6rem;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: #04050a;
+  border: 1px solid var(--line);
+}
+
+.fresh-thumb {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.2rem;
+  background: repeating-linear-gradient(45deg, #121722 0 6px, #1b2233 6px 12px);
+}
+
+.map-choose {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font-weight: 600;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.map-choose:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.tag {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--accent);
   color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.map-list small,
+/* the line under a name only shows where its own columns have gone */
+.map-table .sub {
+  display: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.map-table .fresh .sub {
+  display: block;
+}
+
+/* it has no maker, size or date, so on a wide table its line runs on into
+   those empty cells rather than wrapping */
+@media (min-width: 561px) {
+  .map-table .fresh .sub {
+    white-space: nowrap;
+  }
+}
+
+.map-table .by,
+.map-table .added {
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+/* fixed widths, so the columns hold still as the filter hides rows;
+   the name takes whatever is left */
+.map-table th.by {
+  width: 8rem;
+}
+
+.map-table th.size {
+  width: 5.5rem;
+}
+
+.map-table th.added {
+  width: 9.5rem;
+}
+
+.map-table .size {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.maps-status,
+.maps-empty {
+  margin: 0;
+  padding: 1.25rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.maps-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.65rem 1.25rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.maps-foot .maps-note:empty {
+  display: none;
+}
+
+/* on a phone the columns fold into the line under each name */
+@media (max-width: 560px) {
+  .map-table .by,
+  .map-table .added {
+    display: none;
+  }
+
+  .map-table .sub {
+    display: block;
+  }
+
+  .map-table th.thumb {
+    width: 5.25rem;
+  }
+
+  .map-table th.size {
+    width: 5.75rem;
+  }
+
+  .map-table th:first-child,
+  .map-table td:first-child {
+    padding-left: 1rem;
+  }
+
+  .map-table th:last-child,
+  .map-table td:last-child {
+    padding-right: 1rem;
+  }
+
+  .maps-search,
+  .maps-foot {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
 .maps-note {
   color: var(--muted);
   font-size: 0.8rem;
 }
 
 .maps-note {
-  margin: 0.25rem 0 0;
+  margin: 0;
 }
 
 .team-red {

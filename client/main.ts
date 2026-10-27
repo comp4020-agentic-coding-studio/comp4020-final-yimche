@@ -14,6 +14,7 @@ import {
   type Maze,
 } from "../shared/world.ts";
 import { startEditor } from "./editor.ts";
+import { openMapTable, wireMapTable } from "./maptable.ts";
 
 type Phase = "waiting" | "countdown" | "playing" | "ended";
 type Status = "alive" | "caught" | "spectating";
@@ -707,38 +708,21 @@ $("modes").addEventListener("click", (e) => {
 // The room's link, for sending to friends. Where the clipboard is refused,
 // the link is offered to copy by hand instead.
 // The host's map picker: a fresh maze, or any map in the shared library,
-// newest first. The pick goes to the server, which tells the whole room.
-const mapsDialog = $<HTMLDialogElement>("maps");
-function pickMap(id: number | null): void {
-  if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "map", id }));
-  mapsDialog.close();
-}
-$("map-pick").addEventListener("click", async () => {
-  const { maps } = (await (await fetch("/api/maps")).json()) as {
-    maps: { id: number; name: string; author: string; w: number; h: number }[];
-  };
-  const item = (label: string, note: string, id: number | null) => {
-    const li = document.createElement("li");
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "quiet";
-    b.textContent = label;
-    b.setAttribute("aria-pressed", String((roomMap?.id ?? null) === id));
-    b.addEventListener("click", () => pickMap(id));
-    const small = document.createElement("small");
-    small.textContent = note;
-    li.append(b, small);
-    return li;
-  };
-  $("map-list").replaceChildren(
-    item("Fresh maze", "a new maze each round, sized for the room", null),
-    ...maps.map((m) => item(m.name, `by ${m.author}, ${m.w} by ${m.h}`, m.id)),
-  );
+// newest first, as a table. The pick goes to the server, which tells the room.
+$("map-pick").addEventListener("click", () => {
   keys.clear();
-  mapsDialog.showModal();
+  openMapTable({
+    title: "Pick a map",
+    note: "",
+    fresh: true,
+    current: roomMap?.id ?? null,
+    pick: (id) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ t: "map", id }));
+      $<HTMLDialogElement>("maps").close();
+    },
+  });
 });
-$("maps-close").addEventListener("click", () => mapsDialog.close());
-mapsDialog.addEventListener("close", () => canvas.focus());
+wireMapTable(() => canvas.focus());
 
 $("copy").addEventListener("click", async () => {
   const button = $("copy");
