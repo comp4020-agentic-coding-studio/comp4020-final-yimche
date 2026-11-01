@@ -333,18 +333,20 @@ setInterval(() => {
 
 function broadcast(code: string, game: Game, events: ReturnType<Game["tick"]>, now: number): void {
   const names = (id: string) => game.players.get(id)?.name ?? "someone";
-  const feed = events.map((e) =>
-    // names for the notice everyone sees; ids and the side so the one caught
-    // can tell it's them and be told how. All of it already went to the room.
-    JSON.stringify({
-      t: "catch",
-      catcher: e.catcher && names(e.catcher),
-      caught: names(e.caught),
-      catcherId: e.catcher,
-      caughtId: e.caught,
-      from: e.from,
-    }),
-  );
+  // Names for the notice everyone sees, and ids, which the roster already
+  // gives the room. Which side a catch came from says a little about where
+  // the catcher stood, so only the one caught is told it.
+  const feed = (to: string) =>
+    events.map((e) =>
+      JSON.stringify({
+        t: "catch",
+        catcher: e.catcher && names(e.catcher),
+        caught: names(e.caught),
+        catcherId: e.catcher,
+        caughtId: e.caught,
+        from: e.caught === to ? e.from : null,
+      }),
+    );
   const roster = JSON.stringify(game.roster());
   const round = JSON.stringify(game.round());
   for (const [id, { ws, room }] of sockets) {
@@ -353,7 +355,7 @@ function broadcast(code: string, game: Game, events: ReturnType<Game["tick"]>, n
     if (seen.round !== game.roundVersion) ws.send(round);
     if (seen.roster !== game.rosterVersion) ws.send(roster);
     sent.set(ws, { roster: game.rosterVersion, round: game.roundVersion });
-    for (const f of feed) ws.send(f);
+    for (const f of feed(id)) ws.send(f);
     ws.send(JSON.stringify(game.viewFor(id, now)));
   }
 }

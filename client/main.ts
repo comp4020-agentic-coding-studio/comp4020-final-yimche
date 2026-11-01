@@ -624,6 +624,13 @@ function outFade(o: NonNullable<typeof out>, since: number): void {
   fctx.clearRect(0, 0, fog.width, fog.height);
   fctx.fillStyle = `rgb(6 8 14 / ${0.82 * ease})`;
   fctx.fillRect(0, 0, fog.width, fog.height);
+  // the little circle you could see by, shrinking to nothing where you were
+  fctx.globalCompositeOperation = "destination-out";
+  fctx.fillStyle = "#000";
+  fctx.beginPath();
+  fctx.arc(offX + o.x * scale, offY + o.y * scale, AURA_RADIUS * scale * k, 0, Math.PI * 2);
+  fctx.fill();
+  fctx.globalCompositeOperation = "source-over";
   ctx.drawImage(fog, 0, 0);
   // the edge of the screen pulses red once, for a catch
   if (o.by && !reducedMotion.matches) {
@@ -697,6 +704,8 @@ function showOutCard(o: NonNullable<typeof out>): void {
       return div;
     }),
   );
+  // with the round already over there's nothing left to watch
+  $("out-close").textContent = state?.phase === "ended" ? "Back to the maze" : "Keep watching";
   // over another window, wait until it's put away: that one has the keys
   if (dialogOpen()) {
     win.addEventListener("close", () => out === o && state && inRound(state.phase) && showOutCard(o), { once: true });

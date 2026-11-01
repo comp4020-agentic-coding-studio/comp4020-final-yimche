@@ -266,6 +266,39 @@ it("a powerup nobody can use is answered as refused, and kept", async () => {
   other.ws.close();
 }, 20_000); // a real countdown, then a real walk to a pickup
 
+it("everyone hears who caught whom, but only the one caught is told from which side", async () => {
+  const hostCookie = await signUp("stalker");
+  const { id } = await (await post("/api/maps", { name: `Hall ${unique()}`, rows: openMap(13, 11) }, hostCookie)).json();
+  const room = await newRoom();
+  const host = await open(hostCookie, room);
+  const prey = await open(await signUp("prey"), room);
+  const watcher = await open(await signUp("watcher"), room);
+  await within(1000, () => host.messages.find((m) => m.t === "roster" && m.players.length === 3));
+  host.ws.send(JSON.stringify({ t: "map", id }));
+  await within(1000, () => host.messages.find((m) => m.t === "roster" && m.map?.id === id));
+  host.ws.send(JSON.stringify({ t: "start" }));
+  await within(5000, () => host.messages.find((m) => m.t === "state" && m.phase === "playing"));
+  const preyId = prey.messages.find((m) => m.t === "hello").id;
+  // the prey looks away from the host and stands still; the host walks up behind with the torch on
+  await within(15_000, () => {
+    const h = host.messages.findLast((m) => m.t === "state")?.me;
+    const p = prey.messages.findLast((m) => m.t === "state")?.me;
+    if (!h || !p) return undefined;
+    if (p.status !== "alive") return true;
+    const toPrey = Math.atan2(p.y - h.y, p.x - h.x);
+    prey.ws.send(JSON.stringify({ t: "input", dx: 0, dy: 0, aim: toPrey }));
+    const far = Math.hypot(p.x - h.x, p.y - h.y) > 2;
+    host.ws.send(JSON.stringify({ t: "input", dx: far ? Math.cos(toPrey) : 0, dy: far ? Math.sin(toPrey) : 0, aim: toPrey }));
+    return undefined;
+  });
+  const told = (c: Client) => c.messages.find((m) => m.t === "catch" && m.caughtId === preyId);
+  const theirs = await within(1000, () => told(prey));
+  const others = await within(1000, () => told(watcher));
+  expect(theirs).toMatchObject({ catcher: "stalker", caught: "prey", from: "behind" });
+  expect(others).toMatchObject({ catcher: "stalker", caught: "prey", from: null });
+  for (const c of [host, prey, watcher]) c.ws.close();
+}, 25_000);
+
 it("only the host's pick counts, and a map that isn't in the library is ignored", async () => {
   const room = await newRoom();
   const host = await open(await signUp("boss"), room);
