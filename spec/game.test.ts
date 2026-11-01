@@ -696,6 +696,38 @@ describe("a decoy leaves a copy of you behind", () => {
     expect(game.viewFor("a", 10_100).me?.frozenMs).toBe(0); // and the one who left it is free
   });
 
+  it("a frozen decoy looks frozen, so after a freeze you can't tell a decoy from the real one", () => {
+    // the same freeze, once on the real a and once on a's decoy left where a stood
+    const seenAfter = (onDecoy: boolean) => {
+      const { game, a, b } = playing();
+      Object.assign(a, { x: 5.5, y: 2.5, facing: 0 }); // looking away from b
+      if (onDecoy) {
+        a.item = "decoy";
+        game.use("a", 10_000);
+        Object.assign(a, { x: 10.5, y: 3.5, facing: Math.PI / 2 }); // slipped off into the dark
+      }
+      Object.assign(b, { x: 2.5, y: 2.5, facing: 0 });
+      b.item = "freeze";
+      expect(game.use("b", 10_100)).toBe(true);
+      return [10_150, 12_000, 10_100 + FREEZE_MS + 1].map((t) => game.viewFor("b", t).others);
+    };
+    expect(seenAfter(true)).toEqual(seenAfter(false));
+  });
+
+  it("freezing the real one leaves their decoy as it was, so the copy that moves isn't given away", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 3.5, y: 3.5, facing: Math.PI / 2 });
+    a.item = "decoy";
+    expect(game.use("a", 10_000)).toBe(true); // the decoy stays at (3.5, 3.5), out of b's beam
+    Object.assign(a, { x: 5.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 2.5, y: 2.5, facing: 0 }); // b's torch is on the real a only
+    b.item = "freeze";
+    expect(game.use("b", 10_100)).toBe(true);
+    b.facing = Math.PI / 4; // then b looks down at the decoy, close by in the dark
+    const decoy = game.viewFor("b", 10_200).others.find((o) => o.x === 3.5 && o.y === 3.5);
+    expect(decoy?.frozen).toBe(false);
+  });
+
   it("a freeze aimed at a decoy behind a wall stays in your slot", () => {
     const { game, a, b } = playing();
     Object.assign(a, { x: 7.5, y: 1.5, facing: 0 }); // just behind the wall in the corridor

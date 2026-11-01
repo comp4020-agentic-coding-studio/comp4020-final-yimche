@@ -89,8 +89,10 @@ export interface Player extends Body {
   xrayUntil: number;
   // when a rival's freeze on this player wears off
   frozenUntil: number;
-  // a still copy of this player left behind, until it fades; nothing can catch it
-  decoy: (Body & { until: number }) | null;
+  // a still copy of this player left behind, until it fades; nothing can catch
+  // it. A rival's freeze can land on it, and then it shows frozen as its owner
+  // would, for the same time, without stopping the owner.
+  decoy: (Body & { until: number; frozenUntil: number }) | null;
   // when a rival's blackout on this player's torch wears off
   dimmedUntil: number;
 }
@@ -356,8 +358,8 @@ export class Game {
   // can't be used until the running one wears off; a teleport drops you in a
   // random room ahead of where you face. A freeze stops every rival in your
   // beam right now, walls in the way, and with nobody there it isn't spent.
-  // A rival's decoy in the beam spends it all the same, freezing nobody, so
-  // a freeze never tells you which one was the decoy. A decoy is a still
+  // A rival's decoy in the beam is frozen too, in look only: it shows frost
+  // for the same time, so a freeze never tells you which was the decoy. A decoy is a still
   // copy of you where you stand, facing where you face; like a freeze it's
   // over in an instant for you, and a new one replaces the old. A blackout dims every rival's torch to half its reach for a few
   // seconds, and is over in an instant for you too. Nothing can be used while
@@ -370,8 +372,9 @@ export class Game {
       const lit = (b: Body) => inBeam(this.maze, p, b, false, reach(p, now));
       const others = this.alive().filter((o) => o !== p && rivals(p, o));
       const hit = others.filter(lit);
-      const decoyed = others.some((o) => o.decoy && o.decoy.until > now && lit(o.decoy));
-      if (hit.length === 0 && !decoyed) return false;
+      const decoyed = others.flatMap((o) => (o.decoy && o.decoy.until > now && lit(o.decoy) ? [o.decoy] : []));
+      if (hit.length === 0 && decoyed.length === 0) return false;
+      for (const d of decoyed) d.frozenUntil = now + FREEZE_MS;
       // freezing someone already frozen starts their time over
       for (const o of hit) {
         o.frozenUntil = now + FREEZE_MS;
@@ -383,7 +386,7 @@ export class Game {
     const kind = p.item;
     p.item = null;
     if (kind === "decoy") {
-      p.decoy = { x: p.x, y: p.y, facing: p.facing, until: now + DECOY_MS };
+      p.decoy = { x: p.x, y: p.y, facing: p.facing, until: now + DECOY_MS, frozenUntil: 0 };
       return true;
     }
     if (kind === "blackout") {
@@ -711,11 +714,13 @@ export class Game {
       .filter(({ body }) => seesAll || canSee(this.maze, me, body, xray(me), reach(me, now)));
     // how long a bump or stand-off with each player still shields the pair, so both can see it
     const cooldownMs = (p: Player) => (me ? Math.max(0, (me.cooldownUntil.get(p.id) ?? 0) - now) : 0);
-    const seen = (p: Player, body: Body) => ({ id: p.id, x: body.x, y: body.y, facing: body.facing,
+    // Each copy shows its own freeze: the real one's, or the decoy's, so a
+    // freeze on either looks the same and neither gives the other away.
+    const seen = (p: Player, body: Body & { frozenUntil: number }) => ({ id: p.id, x: body.x, y: body.y, facing: body.facing,
       cooldownMs: cooldownMs(p),
       cooldownHeld: !!me?.cooldownHeld.has(p.id),
       xray: xray(p),
-      frozen: p.frozenUntil > now,
+      frozen: body.frozenUntil > now,
       dimmed: p.dimmedUntil > now,
     });
     return {

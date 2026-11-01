@@ -77,8 +77,10 @@ still in the dark wins the round.
      so someone you can make out in a flash or close beside you may still
      be out of its reach or off to one side. With nobody in your beam it
      doesn't go off, stays in your slot, and you're told "Nobody in your
-     beam to freeze". A decoy in your beam spends it all the same and
-     freezes nobody, so a freeze never gives a decoy away. While you're
+     beam to freeze". A decoy in your beam takes it all the same: it shows
+     frozen for five seconds just as a player would, while its owner walks
+     on, and freezing the real one leaves their decoy as it was, so a
+     freeze never gives a decoy away. While you're
      frozen you can't use your own powerup until it wears off.
    - **Decoy**: leaves a still copy of you where you stand, facing where you
      face, for eight seconds. To everyone else it looks exactly like you: it
