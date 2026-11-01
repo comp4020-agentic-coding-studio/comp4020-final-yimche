@@ -293,7 +293,16 @@ server.on("upgrade", (req, socket, head) => {
           if (msg.id === null) game.setMap(player.id, null);
           else if (map) game.setMap(player.id, { id: map.id, name: map.name, rows: map.rows });
         }
-        if (msg.t === "use") game.use(player.id, Date.now());
+        // the one who pressed is told whether it went off, and what it was,
+        // so a refusal isn't silent; whether they were frozen says why
+        if (msg.t === "use") {
+          const now = Date.now();
+          const me = game.players.get(player.id);
+          const kind = me?.item ?? null;
+          const frozen = !!me && me.frozenUntil > now;
+          const ok = game.use(player.id, now);
+          ws.send(JSON.stringify({ t: "used", kind, ok, frozen }));
+        }
       } catch {
         // ignore anything that isn't our protocol
       }

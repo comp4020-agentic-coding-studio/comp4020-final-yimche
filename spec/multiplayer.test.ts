@@ -215,6 +215,57 @@ it("the host picks a saved map in the lobby, everyone in the room hears which, a
   guest.ws.close();
 });
 
+type Client = { ws: WebSocket; messages: any[] };
+const me = (p: Client) => p.messages.findLast((m) => m.t === "state")?.me;
+
+// Walks a player over the wire to the nearest powerup of a kind, on an open
+// map where a straight line always gets there, and stops once it's carried.
+// Both torches point away from each other the whole time, so nobody is caught
+// on the way and nobody is in the other's beam at the end.
+async function fetchPowerup(p: Client, other: Client, kind: string): Promise<void> {
+  const away = (from: any, to: any) => Math.atan2(from.y - to.y, from.x - to.x);
+  await within(8000, () => {
+    const s = p.messages.findLast((m) => m.t === "state");
+    const o = me(other);
+    if (!s?.me || !o) return undefined;
+    other.ws.send(JSON.stringify({ t: "input", dx: 0, dy: 0, aim: away(o, s.me) }));
+    if (s.me.item === kind) {
+      p.ws.send(JSON.stringify({ t: "input", dx: 0, dy: 0, aim: away(s.me, o) }));
+      return true;
+    }
+    const it = s.pickups.filter((i: any) => i.kind === kind)
+      .sort((x: any, y: any) => Math.hypot(x.x - s.me.x, x.y - s.me.y) - Math.hypot(y.x - s.me.x, y.y - s.me.y))[0];
+    if (it) p.ws.send(JSON.stringify({ t: "input", dx: it.x - s.me.x, dy: it.y - s.me.y, aim: away(s.me, o) }));
+    return undefined;
+  });
+}
+
+it("a powerup nobody can use is answered as refused, and kept", async () => {
+  const hostCookie = await signUp("icy");
+  const { id } = await (await post("/api/maps", { name: `Open ${unique()}`, rows: openMap() }, hostCookie)).json();
+  const room = await newRoom();
+  const host = await open(hostCookie, room);
+  const other = await open(await signUp("bystander"), room);
+  await within(1000, () => host.messages.find((m) => m.t === "roster" && m.players.length === 2));
+  host.ws.send(JSON.stringify({ t: "map", id }));
+  await within(1000, () => host.messages.find((m) => m.t === "roster" && m.map?.id === id));
+  host.ws.send(JSON.stringify({ t: "start" }));
+  await within(5000, () => host.messages.find((m) => m.t === "state" && m.phase === "playing"));
+  await fetchPowerup(host, other, "freeze");
+  await new Promise((r) => setTimeout(r, 200)); // both torches settle, pointing apart
+  const before = host.messages.length;
+  host.ws.send(JSON.stringify({ t: "use" }));
+  const used = await within(1000, () => host.messages.slice(before).find((m) => m.t === "used"));
+  expect(used).toEqual({ t: "used", kind: "freeze", ok: false, frozen: false });
+  const at = host.messages.indexOf(used);
+  const next = await within(1000, () => host.messages.slice(at).find((m) => m.t === "state"));
+  expect(next.me.item).toBe("freeze");
+  // the answer goes to the one who pressed, nobody else
+  expect(other.messages.some((m) => m.t === "used")).toBe(false);
+  host.ws.close();
+  other.ws.close();
+}, 20_000); // a real countdown, then a real walk to a pickup
+
 it("only the host's pick counts, and a map that isn't in the library is ignored", async () => {
   const room = await newRoom();
   const host = await open(await signUp("boss"), room);

@@ -356,9 +356,10 @@ export class Game {
   // can't be used until the running one wears off; a teleport drops you in a
   // random room ahead of where you face. A freeze stops every rival in your
   // beam right now, walls in the way, and with nobody there it isn't spent.
-  // A decoy is a still copy of you where you stand, facing where you face;
-  // like a freeze it's over in an instant for you, and a new one replaces the
-  // old. A blackout dims every rival's torch to half its reach for a few
+  // A rival's decoy in the beam spends it all the same, freezing nobody, so
+  // a freeze never tells you which one was the decoy. A decoy is a still
+  // copy of you where you stand, facing where you face; like a freeze it's
+  // over in an instant for you, and a new one replaces the old. A blackout dims every rival's torch to half its reach for a few
   // seconds, and is over in an instant for you too. Nothing can be used while
   // you're frozen yourself. Returns whether it was used.
   use(id: string, now: number): boolean {
@@ -366,8 +367,11 @@ export class Game {
     if (!p || p.status !== "alive" || this.phase !== "playing" || !p.item) return false;
     if (p.speedUntil > now || p.xrayUntil > now || p.frozenUntil > now) return false;
     if (p.item === "freeze") {
-      const hit = this.alive().filter((o) => o !== p && rivals(p, o) && inBeam(this.maze, p, o, false, reach(p, now)));
-      if (hit.length === 0) return false;
+      const lit = (b: Body) => inBeam(this.maze, p, b, false, reach(p, now));
+      const others = this.alive().filter((o) => o !== p && rivals(p, o));
+      const hit = others.filter(lit);
+      const decoyed = others.some((o) => o.decoy && o.decoy.until > now && lit(o.decoy));
+      if (hit.length === 0 && !decoyed) return false;
       // freezing someone already frozen starts their time over
       for (const o of hit) {
         o.frozenUntil = now + FREEZE_MS;

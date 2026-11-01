@@ -683,6 +683,31 @@ describe("a decoy leaves a copy of you behind", () => {
     expect(game.viewFor("a", 11_000).me?.decoy).toMatchObject({ x: 4.5, ms: DECOY_MS });
   });
 
+  it("a freeze with only a decoy in your beam is spent and freezes nobody", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 5.5, y: 2.5, facing: Math.PI / 2 });
+    a.item = "decoy";
+    expect(game.use("a", 10_000)).toBe(true);
+    Object.assign(a, { x: 10.5, y: 3.5, facing: Math.PI / 2 }); // a slips away, out of b's reach
+    Object.assign(b, { x: 2.5, y: 2.5, facing: 0 }); // b's torch is on the decoy
+    b.item = "freeze";
+    expect(game.use("b", 10_100)).toBe(true); // it goes off, as if it landed
+    expect(game.viewFor("b", 10_100).me?.item).toBe(null);
+    expect(game.viewFor("a", 10_100).me?.frozenMs).toBe(0); // and the one who left it is free
+  });
+
+  it("a freeze aimed at a decoy behind a wall stays in your slot", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 7.5, y: 1.5, facing: 0 }); // just behind the wall in the corridor
+    a.item = "decoy";
+    expect(game.use("a", 10_000)).toBe(true);
+    Object.assign(a, { x: 10.5, y: 3.5, facing: Math.PI / 2 });
+    Object.assign(b, { x: 4.5, y: 1.5, facing: 0 });
+    b.item = "freeze";
+    expect(game.use("b", 10_100)).toBe(false);
+    expect(game.viewFor("b", 10_100).me?.item).toBe("freeze");
+  });
+
   it("a decoy goes when you're out", () => {
     const { game, a, b } = playing();
     Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });

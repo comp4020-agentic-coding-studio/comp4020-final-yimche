@@ -10,6 +10,7 @@ import {
   XRAY_MS,
   castRay,
   fallDepth,
+  inBeam,
   type Kind,
   type Maze,
 } from "../shared/world.ts";
@@ -282,6 +283,13 @@ function handle(msg: { t: string } & Record<string, any>): void {
       if (msg.catcherId === myId) round.catches++;
       if (msg.caughtId === myId) wentOut(msg.catcher, msg.from);
       break;
+    // the server's answer to Space: a freeze it turned down says why, rather
+    // than nothing happening at all
+    case "used":
+      if (msg.ok || !msg.kind) break;
+      if (msg.frozen) notice("You can't use a powerup while frozen");
+      else if (msg.kind === "freeze") notice("Nobody in your beam to freeze");
+      break;
     case "state": {
       const first = !state?.me;
       const was = state?.phase;
@@ -487,7 +495,9 @@ function frame(now: number): void {
     ctx.fill();
   }
   if (playing && me) {
-    ctx.fillStyle = me.frozenMs > 0 ? `rgb(${ICE} / 0.36)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${NIGHT.light} / 0.3)`;
+    const ready = freezeReady(state);
+    ctx.fillStyle =
+      me.frozenMs > 0 ? `rgb(${ICE} / 0.36)` : ready ? `rgb(${ICE} / 0.42)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${NIGHT.light} / 0.3)`;
     beam(ctx, drawn.x, drawn.y, me.facing, myXray, myDim);
     ctx.fill();
   }
@@ -752,6 +762,21 @@ function tile(x: number, y: number, isWall: boolean, lip: boolean, depth: number
   }
 }
 
+// Would a freeze land if you pressed now? Asked the way the server asks it:
+// a rival you can see in your beam, by the shared inBeam, at your torch's
+// reach now, from where the server last had you. Only drawing hangs on it;
+// the server still decides. A decoy counts, since it spends a freeze too.
+function freezeReady(s: State): boolean {
+  const me = s.me;
+  if (s.phase !== "playing" || !me || me.status !== "alive" || me.item !== "freeze") return false;
+  if (me.frozenMs > 0 || me.speedMs > 0 || me.xrayMs > 0) return false;
+  const myTeam = roster.find((p) => p.id === myId)?.team;
+  const reach = me.dimmedMs > 0 ? BEAM_RANGE * BLACKOUT_REACH : BEAM_RANGE;
+  return s.others.some(
+    (o) => !(myTeam && roster.find((p) => p.id === o.id)?.team === myTeam) && inBeam(maze, me, o, false, reach),
+  );
+}
+
 // The slot: what you're carrying, if anything. While a boost or an x-ray
 // torch runs, or you're frozen, a bar in its colour drains along the bottom,
 // and anything you picked up meanwhile waits its turn.
@@ -763,7 +788,9 @@ function inventory(s: State): void {
   if (!show || !s.me) return;
   const { item, speedMs, xrayMs, frozenMs } = s.me;
   const running = speedMs > 0 ? "speed" : xrayMs > 0 ? "xray" : null;
-  const label = item ? (running ? `${NAMES[item]}, after this` : NAMES[item]) : running ? NAMES[running] : "Empty";
+  const label = freezeReady(s)
+    ? "Freeze: ready"
+    : item ? (running ? `${NAMES[item]}, after this` : NAMES[item]) : running ? NAMES[running] : "Empty";
   if (slot.dataset.kind !== (item ?? running ?? "")) slot.dataset.kind = item ?? running ?? "";
   if ($("slot-label").textContent !== label) $("slot-label").textContent = label;
   // a frozen player can't use what they carry until it wears off
