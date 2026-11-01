@@ -103,6 +103,14 @@ function colourOf(id: string): string {
 }
 // where we draw ourselves, eased toward the server's position each frame
 const drawn = { x: 0, y: 0 };
+// This round as you lived it, for the card when you're out: when the lights
+// went out, how many you caught, how many were in it, and the moment you went
+// out, with where you stood and faced, so the dark can hold there and fade.
+const round = { startedAt: 0, catches: 0, players: 0 };
+let out: { at: number; x: number; y: number; facing: number; by: string | null; from: "behind" | "side" | null; place: number; lasted: number } | null = null;
+const OUT_FADE_MS = 1400; // how long the dark holds and fades once you're out
+const OUT_CARD_MS = 1100; // when the card comes up, after the moment you're out
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let lastFrame = performance.now();
 
 // ---------- joining ----------
@@ -271,11 +279,23 @@ function handle(msg: { t: string } & Record<string, any>): void {
       break;
     case "catch":
       notice(msg.catcher ? `${msg.catcher} caught ${msg.caught}` : `The dark took ${msg.caught}`);
+      if (msg.catcherId === myId) round.catches++;
+      if (msg.caughtId === myId) wentOut(msg.catcher, msg.from);
       break;
     case "state": {
       const first = !state?.me;
+      const was = state?.phase;
       state = msg as unknown as State;
       if (first && state.me) Object.assign(drawn, { x: state.me.x, y: state.me.y });
+      if (state.phase === "playing" && was !== "playing") {
+        round.startedAt = performance.now();
+        round.catches = 0;
+        round.players = roster.filter((p) => p.status === "alive").length;
+        out = null;
+      }
+      // the card stays through the end of the round you went out of, and goes
+      // once everyone's back in the lobby or the next round is counting down
+      if (!inRound(state.phase) && outCard.open) outCard.close();
       break;
     }
   }
@@ -454,6 +474,9 @@ function frame(now: number): void {
   }
 
   const playing = me?.status === "alive";
+  // just out: for a moment the dark stays round the spot where it happened
+  const since = out ? now - out.at : Infinity;
+  const holding = !!out && !playing && inRound(state.phase) && since < OUT_FADE_MS;
   const myXray = !!me && me.xrayMs > 0;
   const myDim = !!me && me.dimmedMs > 0;
 
@@ -499,6 +522,7 @@ function frame(now: number): void {
       }
     }
   }
+  if (holding && out) outFade(out, since);
   // powerups glow through the dark: they're no secret, and worth heading for
   for (const it of state.pickups) pickup(it.x, it.y, it.kind, now);
 
@@ -536,6 +560,9 @@ function frame(now: number): void {
     ctx.fillText(`Dark closes in ${Math.ceil(closes / 1000)}`, canvas.width - 12 * dpr, 22 * dpr);
   }
 
+  // where you were, breaking up, while the dark lets go
+  if (holding && out) shards(out, since);
+
   // a red edge when someone's torch is on you
   if (me?.lit && state.phase === "playing") {
     ctx.strokeStyle = "rgb(240 110 90 / 0.85)";
@@ -547,6 +574,136 @@ function frame(now: number): void {
   startButton(state);
   inventory(state);
 }
+
+// ---------- going out ----------
+
+// You've been caught, or fallen. Keep where it happened, work out how your
+// round went while it's fresh, and bring the card up after the moment has
+// had time to land. A late catch message for an old round is ignored.
+// The last catch of a round ends it in the same tick, so "ended" counts too.
+const inRound = (phase: Phase) => phase === "playing" || phase === "ended";
+function wentOut(by: string | null, from: "behind" | "side" | null): void {
+  if (!state?.me || state.phase !== "playing" || out) return;
+  const stillIn = roster.filter((p) => p.status === "alive" && p.id !== myId).length;
+  out = {
+    at: performance.now(),
+    x: drawn.x,
+    y: drawn.y,
+    facing: state.me.facing,
+    by,
+    from,
+    // everyone still in finishes ahead of you, so you place one behind them
+    place: stillIn + 1,
+    lasted: performance.now() - round.startedAt,
+  };
+  keys.clear(); // nothing left to walk
+  joystick = null;
+  const shown = out;
+  setTimeout(() => {
+    if (out === shown && state && inRound(state.phase)) showOutCard(shown);
+  }, reducedMotion.matches ? 0 : OUT_CARD_MS);
+}
+
+// The dark you had, drawn once more round where you stood, fading out. Under
+// reduced motion it's a quick plain fade.
+function outFade(o: NonNullable<typeof out>, since: number): void {
+  const k = 1 - since / OUT_FADE_MS;
+  // holds near full dark at first, then lets go
+  const ease = reducedMotion.matches ? k : Math.sqrt(k);
+  fctx.globalCompositeOperation = "source-over";
+  fctx.clearRect(0, 0, fog.width, fog.height);
+  fctx.fillStyle = `rgb(6 8 14 / ${0.82 * ease})`;
+  fctx.fillRect(0, 0, fog.width, fog.height);
+  ctx.drawImage(fog, 0, 0);
+  // the edge of the screen pulses red once, for a catch
+  if (o.by && !reducedMotion.matches) {
+    ctx.strokeStyle = `rgb(240 110 90 / ${0.9 * Math.sin(Math.PI * Math.min(1, since / 600))})`;
+    ctx.lineWidth = 14 * (devicePixelRatio || 1);
+    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+// Your dot breaking into pieces that drift apart and fade where you were
+// caught; for a fall, it drops and shrinks into the hole instead.
+function shards(o: NonNullable<typeof out>, since: number): void {
+  const k = Math.min(1, since / OUT_FADE_MS);
+  const sx = offX + o.x * scale;
+  const sy = offY + o.y * scale;
+  const r = PLAYER_RADIUS * scale;
+  ctx.fillStyle = o.by ? "#f06e5a" : colourOf(myId);
+  if (reducedMotion.matches) {
+    ctx.globalAlpha = 1 - k;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (!o.by) {
+    ctx.globalAlpha = 1 - k;
+    ctx.beginPath();
+    ctx.arc(sx, sy + k * r, r * (1 - k * 0.85), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = o.facing + (i * Math.PI) / 4 + 0.3;
+    const d = r * (0.4 + 2.2 * k);
+    ctx.globalAlpha = 1 - k;
+    ctx.beginPath();
+    ctx.arc(sx + Math.cos(a) * d, sy + Math.sin(a) * d, r * 0.32 * (1 - k * 0.5), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// The card: who got you and how, then three numbers from your round.
+const outCard = $<HTMLDialogElement>("out");
+const ORDINALS = ["1st", "2nd", "3rd"];
+function showOutCard(o: NonNullable<typeof out>): void {
+  outCard.classList.toggle("fell", !o.by);
+  $("out-h").textContent = o.by ? "Caught" : "You fell";
+  $("out-how").textContent = o.by
+    ? `${o.by} caught you ${o.from === "behind" ? "from behind" : "from the side"}`
+    : "The floor gave way under you";
+  const secs = Math.max(0, Math.round(o.lasted / 1000));
+  const lasted = secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : `${secs}s`;
+  const total = Math.max(round.players, o.place);
+  const place = `${ORDINALS[o.place - 1] ?? `${o.place}th`} of ${total}`;
+  const facts: [string, string][] = [
+    ["lasted", lasted],
+    ["placed", place],
+    [round.catches === 1 ? "catch" : "catches", String(round.catches)],
+  ];
+  $("out-facts").replaceChildren(
+    ...facts.map(([label, value]) => {
+      const div = document.createElement("div");
+      const dt = document.createElement("dt");
+      dt.textContent = label;
+      const dd = document.createElement("dd");
+      dd.textContent = value;
+      div.append(dt, dd);
+      return div;
+    }),
+  );
+  // over another window, wait until it's put away: that one has the keys
+  if (dialogOpen()) {
+    win.addEventListener("close", () => out === o && state && inRound(state.phase) && showOutCard(o), { once: true });
+    return;
+  }
+  outCard.show();
+  $("out-close").focus();
+}
+$("out-close").addEventListener("click", () => outCard.close());
+// Space, Enter and Escape all put it away, and the keys go back to the maze
+outCard.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" || e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    outCard.close();
+  }
+});
+outCard.addEventListener("close", () => canvas.focus());
 
 // How far ahead of the edge a tile starts to shake, and how far behind it a
 // falling tile is gone from sight, both in tiles.

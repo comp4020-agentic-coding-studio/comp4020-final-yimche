@@ -24,6 +24,7 @@ import {
   XRAY_MS,
   angleBetween,
   canSee,
+  catchSide,
   inBeam,
   isBehind,
   isWall,
@@ -108,10 +109,12 @@ export interface Hooks {
   fell(roundId: number, playerId: string): void;
 }
 
-// A catch, or with no catcher, someone the closing dark took
+// A catch, or with no catcher, someone the closing dark took. A catch says
+// which way it came from, so the one caught can be told; a fall has no side.
 export interface CatchEvent {
   catcher: string | null;
   caught: string;
+  from: "behind" | "side" | null;
 }
 
 // Whether one may catch (or be stunned by) the other: anyone, except your own side.
@@ -424,7 +427,7 @@ export class Game {
     const r = this.zoneRadius(now);
     const events: CatchEvent[] = this.alive()
       .filter((p) => tileFallen(this.zone, r, p.x, p.y))
-      .map((p) => ({ catcher: null, caught: p.id }));
+      .map((p) => ({ catcher: null, caught: p.id, from: null }));
     for (const e of events) {
       const p = this.players.get(e.caught)!;
       p.status = "caught";
@@ -450,7 +453,7 @@ export class Game {
 
   private catches(now: number, dt: number): CatchEvent[] {
     const alive = this.alive();
-    const events: { catcher: string; caught: string }[] = [];
+    const events: (CatchEvent & { catcher: string })[] = [];
     const caughtNow = new Set<string>();
     for (const target of alive) target.lit = false;
 
@@ -503,7 +506,7 @@ export class Game {
         target.exposure.set(seeker.id, held);
         if (held >= CATCH_SECONDS && !caughtNow.has(seeker.id) && !caughtNow.has(target.id)) {
           caughtNow.add(target.id);
-          events.push({ catcher: seeker.id, caught: target.id });
+          events.push({ catcher: seeker.id, caught: target.id, from: catchSide(target, seeker) });
         }
       }
     }

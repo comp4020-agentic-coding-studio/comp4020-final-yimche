@@ -118,6 +118,15 @@ which. A round on a picked map is played on it exactly as drawn, at its own
 size, however many turn up; picking Fresh maze goes back to a new maze each
 round, sized for the room.
 
+Being caught, or falling, isn't sudden. For a moment the dark stays round
+the spot where it happened and fades, while your dot breaks up (or drops
+into the hole), and the screen's edge pulses red for a catch. Then a card
+says who caught you and whether it was from behind or from the side (or
+that the floor gave way), how long you lasted, where you placed and how many
+you caught. Put it away with its button, Space, Enter or Escape and watch
+the rest of the round; it goes by itself when the next round starts. With
+reduced motion on, the fade is plain and the card comes straight up.
+
 Anyone who arrives mid-round watches and joins the next one. When a round
 ends, everyone is back in the lobby, wandering the old maze, until the host
 starts another.

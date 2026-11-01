@@ -325,7 +325,16 @@ setInterval(() => {
 function broadcast(code: string, game: Game, events: ReturnType<Game["tick"]>, now: number): void {
   const names = (id: string) => game.players.get(id)?.name ?? "someone";
   const feed = events.map((e) =>
-    JSON.stringify({ t: "catch", catcher: e.catcher && names(e.catcher), caught: names(e.caught) }),
+    // names for the notice everyone sees; ids and the side so the one caught
+    // can tell it's them and be told how. All of it already went to the room.
+    JSON.stringify({
+      t: "catch",
+      catcher: e.catcher && names(e.catcher),
+      caught: names(e.caught),
+      catcherId: e.catcher,
+      caughtId: e.caught,
+      from: e.from,
+    }),
   );
   const roster = JSON.stringify(game.roster());
   const round = JSON.stringify(game.round());

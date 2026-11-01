@@ -144,6 +144,14 @@ export function isBehind(target: Body, attacker: Body): boolean {
   return angleBetween(target.facing, toAttacker) > SAFE_HALF_ANGLE;
 }
 
+// Which way a catch came from, for telling the one caught: "behind" when the
+// attacker is within 45° of straight behind the target, "side" anywhere else
+// outside the safe quarter. Only asked of a catch, which isBehind allows.
+export function catchSide(target: Body, attacker: Body): "behind" | "side" {
+  const toAttacker = Math.atan2(attacker.y - target.y, attacker.x - target.x);
+  return angleBetween(target.facing, toAttacker) > Math.PI - SAFE_HALF_ANGLE ? "behind" : "side";
+}
+
 // Is b inside a's torch beam? This is visibility, not a catch: a beam can land
 // on someone's front and light them up without catching them (see isBehind).
 // An x-ray torch ignores walls, which only ever widens what you see; a

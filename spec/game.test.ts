@@ -298,6 +298,29 @@ describe("catching only counts from behind or the side", () => {
   });
 });
 
+// When you're caught you're told how, so it doesn't come out of nowhere.
+describe("a catch says how it happened", () => {
+  it("a catch says whether it came from behind or from the side", () => {
+    const { game, a, b } = playing();
+    Object.assign(a, { x: 2.5, y: 2.5, facing: 0 }); // a looks east
+    Object.assign(b, { x: 6.5, y: 2.5, facing: 0 }); // b looks east too: a is straight behind
+    expect(game.tick(10_000, CATCH_SECONDS + 0.01)).toEqual([{ catcher: "a", caught: "b", from: "behind" }]);
+
+    const side = playing();
+    Object.assign(side.a, { x: 2.5, y: 2.5, facing: 0 }); // a looks east at b
+    Object.assign(side.b, { x: 6.5, y: 2.5, facing: Math.PI / 2 }); // b looks south: a is off to b's side
+    expect(side.game.tick(10_000, CATCH_SECONDS + 0.01)).toEqual([{ catcher: "a", caught: "b", from: "side" }]);
+  });
+
+  it("a fall has nobody to blame and no side", () => {
+    const { game, a, b } = playing();
+    game.zone = { x: 6.5, y: 2.5 };
+    Object.assign(a, { x: 6.5, y: 2.5, facing: 0 });
+    Object.assign(b, { x: 1.5, y: 1.5, facing: 0 });
+    expect(game.tick(10_000 + CLOSE_AFTER_MS + CLOSE_TAKES_MS, 0.05)).toEqual([{ catcher: null, caught: "b", from: null }]);
+  });
+});
+
 // An open 31x31 floor, for rules about where things land.
 const open31: Maze = {
   w: 31,

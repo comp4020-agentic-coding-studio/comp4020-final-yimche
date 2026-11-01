@@ -56,6 +56,16 @@
       </button>
     </main>
 
+    <!-- What happened when you're out: who got you and how, and how your
+         round went. It sits over the maze while you watch the rest play,
+         and goes once the next round is on its way. -->
+    <dialog id="out" class="window out" aria-labelledby="out-h" aria-describedby="out-how">
+      <h2 id="out-h">Caught</h2>
+      <p id="out-how" class="out-how"></p>
+      <dl id="out-facts" class="record out-facts"></dl>
+      <button id="out-close" type="button">Keep watching</button>
+    </dialog>
+
     <!-- The map editor, at /?edit: the same night, a grid to paint walls and
          floor on, and a bar of tools. The game above stays hidden. -->
     <main id="editor" class="editor" aria-label="Map editor" hidden>
