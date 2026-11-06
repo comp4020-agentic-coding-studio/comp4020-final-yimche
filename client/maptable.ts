@@ -173,7 +173,9 @@ export async function openMapTable(o: Options): Promise<void> {
     canvas.height = m.h;
     const size = `${m.w} × ${m.h}`;
     const added = ago(m.createdAt, now);
-    rows.push(row(m.id, m.name, canvas, `by ${m.author}, ${added}`, m.author, size, added));
+    // the theme by name too: at thumbnail size some of their colours sit close
+    const look = LOOKS[m.theme] ?? LOOKS.night;
+    rows.push(row(m.id, m.name, canvas, `${look.name}, by ${m.author}, ${added}`, m.author, size, added));
   }
   body.replaceChildren(...rows);
   body.closest("table")!.hidden = rows.length === 0;

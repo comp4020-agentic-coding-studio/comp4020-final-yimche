@@ -136,7 +136,7 @@ game's first look), Catacombs (worn flagstones), Garden (mossy brick between
 hedges), Manor (oak boards and plum walls) and Foundry (steel grating with a
 rust edge). The editor has a theme picker beside the tools, draws the map in
 it as you paint, and saves the map with it; the library's pictures show each
-map in its theme. A round on a picked map is in that map's theme, and a fresh
+map in its theme, named beside it. A round on a picked map is in that map's theme, and a fresh
 maze gets one at random each round. The server says which with the round, so
 everyone in the room sees the same one. Only the ground changes: the beam,
 the dark, the red of a falling tile and every player's colour are the same in
