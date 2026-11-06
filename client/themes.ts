@@ -25,8 +25,9 @@ export const LOOKS: Record<Theme, Look> = {
   night: { name: "Night", floor: "#46536f", grout: "#3a4660", wall: "#121722", lip: "#5a6888", void: "#04050a", pattern: "tiles" },
   // pale worn stone under old earth
   catacombs: { name: "Catacombs", floor: "#5f5848", grout: "#423c31", wall: "#17130e", lip: "#7a705b", void: "#060504", pattern: "flagstones" },
-  // a mossy brick path between dark hedges
-  garden: { name: "Garden", floor: "#4f5d45", grout: "#384330", wall: "#0d1a0c", lip: "#3e6a37", void: "#030702", pattern: "bricks" },
+  // a mossy brick path between dark hedges, the floor greyed toward night
+  // so every player stands off it as clearly as on night
+  garden: { name: "Garden", floor: "#4c5649", grout: "#363e32", wall: "#0d1a0c", lip: "#3e6a37", void: "#030702", pattern: "bricks" },
   // oak boards and plum panelled walls
   manor: { name: "Manor", floor: "#5e4433", grout: "#3f2c20", wall: "#1c1017", lip: "#6a3d55", void: "#070306", pattern: "planks" },
   // steel grating over the dark, walls of soot with a rust edge
