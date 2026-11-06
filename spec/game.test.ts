@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AWAY_GRACE_MS, ENDED_MS, Game, type Hooks, type Mode } from "../server/game.ts";
+import { THEMES } from "../shared/maps.ts";
 import {
   BEAM_RANGE,
   BLACKOUT_MS,
@@ -1009,6 +1010,7 @@ describe("the host can pick a hand-made map", () => {
   const hall = {
     id: 7,
     name: "Long hall",
+    theme: "manor" as const,
     rows: Array.from({ length: 11 }, (_, y) => (y === 0 || y === 10 ? "#".repeat(31) : "#" + ".".repeat(29) + "#")),
   };
 
@@ -1048,6 +1050,33 @@ describe("the host can pick a hand-made map", () => {
     game.start("a", 0);
     expect(game.maze.rows).not.toEqual(hall.rows);
     expect(game.maze.w).toBe(game.maze.h);
+  });
+});
+
+describe("every map has a look", () => {
+  it("a fresh maze gets a theme each round", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const game = new Game(hooks());
+      game.join("a", "A", 0);
+      game.join("b", "B", 0);
+      game.start("a", 0);
+      const { theme } = game.round();
+      expect(THEMES).toContain(theme);
+      seen.add(theme);
+    }
+    // picked at random, so forty rounds don't all look the same
+    expect(seen.size).toBeGreaterThan(1);
+  });
+
+  it("a round on a picked map is in that map's theme", () => {
+    const game = new Game(hooks());
+    game.join("a", "A", 0);
+    game.join("b", "B", 0);
+    const rows = Array.from({ length: 11 }, (_, y) => (y === 0 || y === 10 ? "#".repeat(13) : "#" + ".".repeat(11) + "#"));
+    game.setMap("a", { id: 3, name: "Glasshouse", rows, theme: "garden" });
+    game.start("a", 0);
+    expect(game.round().theme).toBe("garden");
   });
 });
 

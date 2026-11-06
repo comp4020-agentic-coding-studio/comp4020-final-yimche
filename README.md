@@ -131,6 +131,18 @@ which. A round on a picked map is played on it exactly as drawn, at its own
 size, however many turn up; picking Fresh maze goes back to a new maze each
 round, sized for the room.
 
+Every map has a look, one of five themes: Night (blue square tiles, the
+game's first look), Catacombs (worn flagstones), Garden (mossy brick between
+hedges), Manor (oak boards and plum walls) and Foundry (steel grating with a
+rust edge). The editor has a theme picker beside the tools, draws the map in
+it as you paint, and saves the map with it; the library's pictures show each
+map in its theme. A round on a picked map is in that map's theme, and a fresh
+maze gets one at random each round. The server says which with the round, so
+everyone in the room sees the same one. Only the ground changes: the beam,
+the dark, the red of a falling tile and every player's colour are the same in
+every theme, so a round reads the same whichever you're in. Maps saved
+before themes play as Night.
+
 Being caught, or falling, isn't sudden. For a moment the dark stays round
 the spot where it happened and fades, while your dot breaks up (or drops
 into the hole), and the screen's edge pulses red for a catch. Then a card

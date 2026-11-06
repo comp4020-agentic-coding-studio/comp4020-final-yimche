@@ -3,6 +3,9 @@
 // editor opens one to copy. The dialog opens at once and fills in as the list
 // arrives; each picture is fetched only when its row scrolls into view.
 
+import type { Theme } from "../shared/maps.ts";
+import { LOOKS } from "./themes.ts";
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export interface MapSummary {
@@ -11,11 +14,10 @@ export interface MapSummary {
   author: string;
   w: number;
   h: number;
+  theme: Theme;
   createdAt: number;
 }
 
-// the same night the game is drawn in, so a picture matches the round
-const NIGHT = { floor: "#46536f", wall: "#121722" };
 
 // A map's rows never change once saved, so each is fetched once a visit.
 const rowCache = new Map<number, Promise<string[]>>();
@@ -31,14 +33,15 @@ export function mapRows(id: number): Promise<string[]> {
   return rows;
 }
 
-// One pixel a square; the page scales it up crisp.
-function drawThumb(canvas: HTMLCanvasElement, rows: string[]): void {
+// One pixel a square, in the map's theme; the page scales it up crisp.
+function drawThumb(canvas: HTMLCanvasElement, rows: string[], theme: Theme): void {
+  const look = LOOKS[theme] ?? LOOKS.night;
   canvas.width = rows[0].length;
   canvas.height = rows.length;
   const ctx = canvas.getContext("2d")!;
   rows.forEach((row, y) =>
     [...row].forEach((c, x) => {
-      ctx.fillStyle = c === "#" ? NIGHT.wall : NIGHT.floor;
+      ctx.fillStyle = c === "#" ? look.wall : look.floor;
       ctx.fillRect(x, y, 1, 1);
     }),
   );
@@ -116,7 +119,7 @@ export async function openMapTable(o: Options): Promise<void> {
         if (!e.isIntersecting) continue;
         const canvas = e.target as HTMLCanvasElement;
         seen!.unobserve(canvas);
-        mapRows(Number(canvas.dataset.id)).then((rows) => drawThumb(canvas, rows), () => {});
+        mapRows(Number(canvas.dataset.id)).then((rows) => drawThumb(canvas, rows, canvas.dataset.theme as Theme), () => {});
       }
     },
     { root: $("maps-scroll"), rootMargin: "200px 0px" },
@@ -163,6 +166,7 @@ export async function openMapTable(o: Options): Promise<void> {
   for (const m of maps) {
     const canvas = document.createElement("canvas");
     canvas.dataset.id = String(m.id);
+    canvas.dataset.theme = m.theme;
     canvas.setAttribute("aria-hidden", "true");
     // a placeholder the right shape until the picture arrives
     canvas.width = m.w;

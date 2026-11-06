@@ -17,7 +17,7 @@ import {
   type Body,
   type Maze,
 } from "../shared/world.ts";
-import { ICE, NIGHT, dot, floor as drawFloor, frost, shield, beam as torchBeam, type View } from "./look.ts";
+import { ICE, LIGHT, dot, floor as drawFloor, frost, shield, beam as torchBeam, type View } from "./look.ts";
 
 // A small open room, walled all round: enough space to show the motion, with
 // nothing in the middle to hide the geometry it's demonstrating.
@@ -106,7 +106,7 @@ function catchingDemo(): Demo {
       const caught = exposure[Math.min(exposure.length - 1, Math.floor((t / seconds) * exposure.length))] >= CATCH_SECONDS;
       drawFloor(v);
       safeCone(v, rival);
-      if (lit) fill(v, seeker.x, seeker.y, seeker.facing, `rgb(${NIGHT.light} / 0.26)`);
+      if (lit) fill(v, seeker.x, seeker.y, seeker.facing, `rgb(${LIGHT} / 0.26)`);
       dot(v, rival.x, rival.y, rival.facing, RIVAL, "", lit && caught);
       dot(v, seeker.x, seeker.y, seeker.facing, SEEKER, "");
     },
@@ -125,7 +125,7 @@ function safeCone(v: View, body: Body): void {
   ctx.moveTo(sx, sy);
   ctx.arc(sx, sy, r, body.facing - SAFE_HALF_ANGLE, body.facing + SAFE_HALF_ANGLE);
   ctx.closePath();
-  ctx.fillStyle = `rgb(${NIGHT.light} / 0.1)`;
+  ctx.fillStyle = `rgb(${LIGHT} / 0.1)`;
   ctx.fill();
 }
 
@@ -290,7 +290,7 @@ function freezeDemo(): Demo {
       const lit = inBeam(ROOM, seeker, rival);
       const caught = exposure[Math.min(exposure.length - 1, Math.floor((t / seconds) * exposure.length))] >= CATCH_SECONDS;
       drawFloor(v);
-      if (lit) fill(v, seeker.x, seeker.y, seeker.facing, ready || frozen ? `rgb(${ICE} / 0.4)` : `rgb(${NIGHT.light} / 0.26)`);
+      if (lit) fill(v, seeker.x, seeker.y, seeker.facing, ready || frozen ? `rgb(${ICE} / 0.4)` : `rgb(${LIGHT} / 0.26)`);
       dot(v, rival.x, rival.y, rival.facing, RIVAL, "", lit && caught);
       if (frozen) frost(v, rival.x, rival.y, t * 1000);
       dot(v, seeker.x, seeker.y, seeker.facing, SEEKER, "");

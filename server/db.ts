@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import type { Theme } from "../shared/maps.ts";
 
 // /data is the Fly volume, the only storage that survives a redeploy.
 const dir = process.env.DATA_DIR ?? "/data";
@@ -82,6 +83,13 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 `);
+// Each map's theme came later. Added in place when it's missing, so a library
+// saved before keeps every map and they all play as night; nothing here needs
+// SCHEMA bumped, which would drop the players.
+const mapColumns = db.prepare("PRAGMA table_info(maps)").all() as { name: string }[];
+if (!mapColumns.some((c) => c.name === "theme")) {
+  db.exec("ALTER TABLE maps ADD COLUMN theme TEXT NOT NULL DEFAULT 'night'");
+}
 
 // Guests who haven't been back in a month are forgotten, record and all. A
 // catch between them and someone else stays on the other one's record.
@@ -151,9 +159,9 @@ const q = {
     WHERE rounds > 0
     ORDER BY wins DESC, catches DESC
     LIMIT 10`),
-  addMap: db.prepare("INSERT INTO maps (name, author, author_id, w, h, rows, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"),
-  maps: db.prepare("SELECT id, name, author, w, h, created_at AS createdAt FROM maps ORDER BY id DESC LIMIT 100"),
-  map: db.prepare("SELECT id, name, author, w, h, rows FROM maps WHERE id = ?"),
+  addMap: db.prepare("INSERT INTO maps (name, author, author_id, w, h, rows, theme, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"),
+  maps: db.prepare("SELECT id, name, author, w, h, theme, created_at AS createdAt FROM maps ORDER BY id DESC LIMIT 100"),
+  map: db.prepare("SELECT id, name, author, w, h, rows, theme FROM maps WHERE id = ?"),
 };
 
 export interface MapRow {
@@ -163,6 +171,7 @@ export interface MapRow {
   w: number;
   h: number;
   rows: string[];
+  theme: Theme;
 }
 
 export const store = {
@@ -202,8 +211,8 @@ export const store = {
     return { ...row, guest: row.guest === 1, modes };
   },
   leaderboard: () => q.leaderboard.all() as { name: string; rounds: number; wins: number; catches: number }[],
-  addMap: (name: string, author: PlayerRow, rows: string[]) =>
-    Number(q.addMap.run(name, author.name, author.id, rows[0].length, rows.length, rows.join("\n"), Date.now()).lastInsertRowid),
+  addMap: (name: string, author: PlayerRow, rows: string[], theme: Theme) =>
+    Number(q.addMap.run(name, author.name, author.id, rows[0].length, rows.length, rows.join("\n"), theme, Date.now()).lastInsertRowid),
   // the newest hundred, without their rows, for picking from
   maps: () => q.maps.all() as Omit<MapRow, "rows">[],
   map: (id: number): MapRow | undefined => {

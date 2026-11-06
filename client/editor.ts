@@ -1,5 +1,6 @@
-import { MAP_MAX, MAP_MIN, isSpot, mapProblem, unreachable } from "../shared/maps.ts";
+import { MAP_MAX, MAP_MIN, THEMES, cleanTheme, isSpot, mapProblem, unreachable, type Theme } from "../shared/maps.ts";
 import { openMapTable } from "./maptable.ts";
+import { LOOKS, floorTile } from "./themes.ts";
 
 // The map editor, at /?edit. A grid of walls and floor you paint by clicking
 // or dragging, with the same checks the server makes shown live as you draw,
@@ -9,8 +10,6 @@ import { openMapTable } from "./maptable.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-// the same night the game is drawn in, so a map looks here as it will in play
-const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a" };
 
 export function startEditor(): void {
   document.title = "Map editor · Torchlight";
@@ -20,6 +19,8 @@ export function startEditor(): void {
   const ctx = canvas.getContext("2d")!;
   let rows = walled(21, 21);
   let tool = "#";
+  // the theme the map is drawn and saved in, the same as it will play in
+  let theme: Theme = "night";
   let scale = 1;
   let offX = 0;
   let offY = 0;
@@ -94,32 +95,29 @@ export function startEditor(): void {
   }
   new ResizeObserver(layout).observe(canvas);
 
-  // Tiles as the game draws them. A dot marks each spot (where players and
+  // Tiles as the game draws them, in the theme picked. A dot marks each spot (where players and
   // powerups can appear), brighter when it's open, and floor that can't be
   // reached from the rest is washed red.
   function draw(): void {
     const w = rows[0].length;
     const h = rows.length;
     const sealed = unreachable(rows);
-    ctx.fillStyle = NIGHT.void;
+    const look = LOOKS[theme];
+    ctx.fillStyle = look.void;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const px = offX + x * scale;
         const py = offY + y * scale;
         if (rows[y][x] === "#") {
-          ctx.fillStyle = NIGHT.wall;
+          ctx.fillStyle = look.wall;
           ctx.fillRect(px, py, scale + 0.5, scale + 0.5);
           if (rows[y + 1]?.[x] === ".") {
-            ctx.fillStyle = NIGHT.edge;
+            ctx.fillStyle = look.lip;
             ctx.fillRect(px, py + scale * 0.82, scale + 0.5, scale * 0.18 + 0.5);
           }
         } else {
-          const gap = Math.max(1, scale * 0.04);
-          ctx.fillStyle = NIGHT.grout;
-          ctx.fillRect(px, py, scale + 0.5, scale + 0.5);
-          ctx.fillStyle = NIGHT.floor;
-          ctx.fillRect(px + gap, py + gap, scale - gap, scale - gap);
+          floorTile(ctx, look, px, py, scale, x, y);
           if (sealed.has(`${x},${y}`)) {
             ctx.fillStyle = "rgb(220 70 60 / 0.45)";
             ctx.fillRect(px, py, scale + 0.5, scale + 0.5);
@@ -194,13 +192,35 @@ export function startEditor(): void {
     changed();
   });
 
+  // The theme picker: one radio per theme, like the paint tools.
+  const themes = $("ed-theme");
+  const showTheme = () => {
+    for (const b of themes.querySelectorAll("button")) b.setAttribute("aria-checked", String(b.dataset.theme === theme));
+  };
+  for (const t of THEMES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.dataset.theme = t;
+    b.textContent = LOOKS[t].name;
+    themes.append(b);
+  }
+  themes.addEventListener("click", (e) => {
+    const picked = cleanTheme((e.target as HTMLElement).closest<HTMLButtonElement>("button")?.dataset.theme);
+    if (!picked) return;
+    theme = picked;
+    showTheme();
+    draw();
+  });
+  showTheme();
+
   // ---------- the library ----------
 
   // Saving takes a name, as playing does; with none yet, the name form comes
   // first and the save carries on after it.
   async function save(): Promise<void> {
     const name = $<HTMLInputElement>("ed-name").value;
-    const r = await fetch("/api/maps", { method: "POST", body: JSON.stringify({ name, rows }) });
+    const r = await fetch("/api/maps", { method: "POST", body: JSON.stringify({ name, rows, theme }) });
     if (r.status === 401) {
       const join = $<HTMLDialogElement>("join");
       // the same name form as joining a game, worded for saving a map
@@ -225,8 +245,10 @@ export function startEditor(): void {
       note: "Saving it again makes a new copy.",
       fresh: false,
       pick: async (id) => {
-        const opened = (await (await fetch(`/api/maps/${id}`)).json()) as { name: string; rows: string[] };
+        const opened = (await (await fetch(`/api/maps/${id}`)).json()) as { name: string; rows: string[]; theme: Theme };
         rows = opened.rows;
+        theme = cleanTheme(opened.theme) ?? "night";
+        showTheme();
         $<HTMLInputElement>("ed-name").value = opened.name;
         $<HTMLDialogElement>("maps").close();
         layout();

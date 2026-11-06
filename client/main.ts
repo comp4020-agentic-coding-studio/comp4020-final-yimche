@@ -15,8 +15,9 @@ import {
 import { initDemos, showDemos, stopDemos } from "./demos.ts";
 import { startEditor } from "./editor.ts";
 import * as look from "./look.ts";
-import { ICE, NIGHT, PLAYER_COLOURS, SHAKE_AHEAD, type View } from "./look.ts";
+import { ICE, LIGHT, PLAYER_COLOURS, SHAKE_AHEAD, type View } from "./look.ts";
 import { openMapTable, wireMapTable } from "./maptable.ts";
+import { LOOKS, type Look } from "./themes.ts";
 
 type Phase = "waiting" | "countdown" | "playing" | "ended";
 type Status = "alive" | "caught" | "spectating";
@@ -77,6 +78,8 @@ let hostId: string | null = null;
 // the room is in the link, so sharing the page shares the room
 let room = new URLSearchParams(location.search).get("room")?.toUpperCase() ?? "";
 let maze: Maze = { w: 1, h: 1, rows: ["#"] };
+// the theme this round is drawn in, as the server says for everyone in the room
+let theme: Look = LOOKS.night;
 let state: State | null = null;
 let roster: RosterEntry[] = [];
 let winner: string | null = null;
@@ -86,7 +89,7 @@ let mode: Mode = "ffa";
 let roomMap: { id: number; name: string } | null = null;
 const MODE_NAMES: Record<Mode, string> = { ffa: "Free for all", teams: "Teams", duel: "One v one" };
 const TEAM_NAMES: Record<Team, string> = { red: "Red", blue: "Blue" };
-// The night palette and the player colours live in look.ts. A player's colour
+// The player colours live in look.ts, the theme colours in themes.ts. A player's colour
 // comes from their id, so it's the same on every screen and from round to round.
 const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4", freeze: "#bfeaff", decoy: "#e8b04a", blackout: "#e8574e" };
 const TEAM_COLOURS: Record<Team, string> = { red: "#f08a6c", blue: "#6ea8f5" };
@@ -260,6 +263,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
     case "round": {
       const rows = msg.maze as string[];
       maze = { w: rows[0].length, h: rows.length, rows };
+      theme = LOOKS[msg.theme as keyof typeof LOOKS] ?? LOOKS.night;
       winner = msg.winner;
       winnerTeam = msg.winnerTeam;
       if (msg.phase === "countdown") $("notices").replaceChildren();
@@ -435,7 +439,7 @@ function toScreen(x: number, y: number): [number, number] {
 }
 
 // The round as look.ts draws it: this maze, at this scale and offset.
-const view = (): View => ({ ctx, maze, scale, offX, offY });
+const view = (): View => ({ ctx, maze, scale, offX, offY, look: theme });
 
 // The lit part of a beam, as a path on c (the maze or the fog), cut short
 // wherever a wall stops it; see look.ts.
@@ -459,7 +463,7 @@ function frame(now: number): void {
 
   // the maze, tile by tile, so you can count the grid. Once the dark closes in,
   // tiles shake as the edge reaches them, then drop away into the dark.
-  ctx.fillStyle = NIGHT.void;
+  ctx.fillStyle = theme.void;
   ctx.fillRect(offX, offY, maze.w * scale, maze.h * scale);
   const wall = (x: number, y: number) => maze.rows[y]?.[x] === "#";
   const zone = state.zone;
@@ -479,14 +483,14 @@ function frame(now: number): void {
 
   // other torches you can see
   for (const o of state.others) {
-    ctx.fillStyle = o.frozen ? `rgb(${ICE} / 0.24)` : o.xray ? "rgb(170 150 255 / 0.16)" : `rgb(${NIGHT.light} / 0.14)`;
+    ctx.fillStyle = o.frozen ? `rgb(${ICE} / 0.24)` : o.xray ? "rgb(170 150 255 / 0.16)" : `rgb(${LIGHT} / 0.14)`;
     beam(ctx, o.x, o.y, o.facing, o.xray, o.dimmed);
     ctx.fill();
   }
   if (playing && me) {
     const ready = freezeReady(state);
     ctx.fillStyle =
-      me.frozenMs > 0 ? `rgb(${ICE} / 0.36)` : ready ? `rgb(${ICE} / 0.42)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${NIGHT.light} / 0.3)`;
+      me.frozenMs > 0 ? `rgb(${ICE} / 0.36)` : ready ? `rgb(${ICE} / 0.42)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${LIGHT} / 0.3)`;
     beam(ctx, drawn.x, drawn.y, me.facing, myXray, myDim);
     ctx.fill();
   }

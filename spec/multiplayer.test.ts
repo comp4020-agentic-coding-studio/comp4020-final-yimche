@@ -215,6 +215,39 @@ it("the host picks a saved map in the lobby, everyone in the room hears which, a
   guest.ws.close();
 });
 
+it("a map is saved with its theme, and a round on it says so", async () => {
+  const hostCookie = await signUp("decorator");
+  const name = `Crypt ${unique()}`;
+  const saved = await post("/api/maps", { name, rows: openMap(), theme: "catacombs" }, hostCookie);
+  expect(saved.status).toBe(200);
+  const { id } = await saved.json();
+  const { maps } = await (await fetch(new URL("/api/maps", baseUrl))).json();
+  expect(maps).toContainEqual(expect.objectContaining({ id, theme: "catacombs" }));
+  expect(await (await fetch(new URL(`/api/maps/${id}`, baseUrl))).json()).toMatchObject({ id, theme: "catacombs" });
+
+  // no theme given is night; a theme that isn't one of the five is turned away, and says why
+  const plain = await (await post("/api/maps", { name: `Plain ${unique()}`, rows: openMap() }, hostCookie)).json();
+  expect(await (await fetch(new URL(`/api/maps/${plain.id}`, baseUrl))).json()).toMatchObject({ theme: "night" });
+  const bad = await post("/api/maps", { name: "Swamp", rows: openMap(), theme: "swamp" }, hostCookie);
+  expect(bad.status).toBe(400);
+  expect((await bad.json()).error).toBe("A map's theme is one of night, catacombs, garden, manor or foundry");
+
+  // everyone in the room is told the theme with the round
+  const room = await newRoom();
+  const host = await open(hostCookie, room);
+  const guest = await open(await signUp("visitor"), room);
+  await within(1000, () => guest.messages.find((m) => m.t === "roster" && m.players.length === 2));
+  host.ws.send(JSON.stringify({ t: "map", id }));
+  await within(1000, () => guest.messages.find((m) => m.t === "roster" && m.map?.id === id));
+  host.ws.send(JSON.stringify({ t: "start" }));
+  for (const p of [host, guest]) {
+    const round = await within(1000, () => p.messages.find((m) => m.t === "round" && m.phase === "countdown"));
+    expect(round.theme).toBe("catacombs");
+  }
+  host.ws.close();
+  guest.ws.close();
+});
+
 type Client = { ws: WebSocket; messages: any[] };
 const me = (p: Client) => p.messages.findLast((m) => m.t === "state")?.me;
 

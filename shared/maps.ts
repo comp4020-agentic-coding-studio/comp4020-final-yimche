@@ -73,3 +73,15 @@ export function cleanMapName(raw: unknown): string | null {
   const name = raw.replace(/[\p{C}]/gu, "").trim().slice(0, MAP_NAME_MAX);
   return name.length > 0 ? name : null;
 }
+
+// The look a map is drawn in. Only the tiles and walls change with it; the
+// beam, the dark and the players read the same in every one. Night is how the
+// game looked before themes, and what any map saved without one plays in.
+export type Theme = "night" | "catacombs" | "garden" | "manor" | "foundry";
+export const THEMES: Theme[] = ["night", "catacombs", "garden", "manor", "foundry"];
+
+// A theme by its exact name, or null. A missing theme meaning night is the
+// caller's call, not this one's.
+export function cleanTheme(raw: unknown): Theme | null {
+  return THEMES.includes(raw as Theme) ? (raw as Theme) : null;
+}

@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize } from "node:path";
 import { marked } from "marked";
 import { WebSocketServer, type WebSocket } from "ws";
-import { cleanMapName, mapProblem } from "../shared/maps.ts";
+import { cleanMapName, cleanTheme, mapProblem } from "../shared/maps.ts";
 import { store } from "./db.ts";
 import { Game, type Mode } from "./game.ts";
 
@@ -233,7 +233,10 @@ const server = createServer(async (req, res) => {
     if (!name) return json(res, 400, { error: "a map's name is 1 to 24 characters" });
     const problem = mapProblem(body.rows);
     if (problem) return json(res, 400, { error: problem });
-    return json(res, 200, { id: store.addMap(name, player, body.rows as string[]) });
+    // a map saved without a theme is night, as every map was before themes
+    const theme = body.theme === undefined ? "night" : cleanTheme(body.theme);
+    if (!theme) return json(res, 400, { error: "A map's theme is one of night, catacombs, garden, manor or foundry" });
+    return json(res, 200, { id: store.addMap(name, player, body.rows as string[], theme) });
   }
   const mapId = url.pathname.match(/^\/api\/maps\/(\d+)$/)?.[1];
   if (mapId && req.method === "GET") {
@@ -291,7 +294,7 @@ server.on("upgrade", (req, socket, head) => {
         if (msg.t === "map") {
           const map = typeof msg.id === "number" ? store.map(msg.id) : undefined;
           if (msg.id === null) game.setMap(player.id, null);
-          else if (map) game.setMap(player.id, { id: map.id, name: map.name, rows: map.rows });
+          else if (map) game.setMap(player.id, { id: map.id, name: map.name, rows: map.rows, theme: map.theme });
         }
         // the one who pressed is told whether it went off, and what it was,
         // so a refusal isn't silent; whether they were frozen says why

@@ -1,9 +1,11 @@
-// How the game looks, in small pieces anything can draw with: the night
-// palette, a tile, a torch beam, a player, the ice and the stun ring. The
+// How the game looks, in small pieces anything can draw with: a tile in the
+// map's theme, a torch beam, a player, the ice and the stun ring. The
 // round in main.ts and the demos in How to play both draw with these, so a
 // demo looks like the game it explains. Each takes a view saying where the
-// maze sits on its canvas and how big a tile is, in canvas pixels.
+// maze sits on its canvas and how big a tile is, in canvas pixels, and the
+// theme its tiles are drawn in (night when it doesn't say).
 
+import { LOOKS, floorTile, type Look } from "./themes.ts";
 import { BEAM_HALF_ANGLE, BEAM_RANGE, BLACKOUT_REACH, PLAYER_RADIUS, castRay, type Maze } from "../shared/world.ts";
 
 export interface View {
@@ -12,11 +14,12 @@ export interface View {
   scale: number; // one tile, in canvas pixels
   offX: number;
   offY: number;
+  look?: Look;
 }
 
-// The night the maze is drawn in, and a colour for each player so you can
-// tell who's who in the dark.
-export const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a", light: "255 236 196" };
+// The torchlight, and a colour for each player so you can tell who's who in
+// the dark. Both are the same in every theme; themes.ts holds the ground.
+export const LIGHT = "255 236 196";
 export const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
 // frost: the pale blue a frozen player and their stuck beam are tinted with
 export const ICE = "200 238 255";
@@ -28,8 +31,8 @@ export const LIT = "#f06e5a";
 export const SHAKE_AHEAD = 0.6;
 const FALL_DEPTH = 0.8;
 
-// One tile of the maze. Floor tiles sit slightly inset so the grout between
-// them shows the grid; a wall has a lit lip along its bottom when floor lies
+// One tile of the maze, in the view's theme. Floor is laid in the theme's
+// pattern with grout showing the grid; a wall has a lit lip along its bottom when floor lies
 // below it, so it reads as raised. A falling tile shrinks and darkens as it
 // drops, and a fallen one is left as the dark underneath.
 export function tile(v: View, x: number, y: number, isWall: boolean, lip: boolean, depth: number, now: number): void {
@@ -47,21 +50,19 @@ export function tile(v: View, x: number, y: number, isWall: boolean, lip: boolea
   const px = offX + (x + 0.5 - size / 2) * scale + jx;
   const py = offY + (y + 0.5 - size / 2) * scale + jy + fall * scale * 0.25;
   const s = size * scale;
+  const look = v.look ?? LOOKS.night;
   if (isWall) {
-    ctx.fillStyle = NIGHT.wall;
+    ctx.fillStyle = look.wall;
     ctx.fillRect(px, py, s + 0.5, s + 0.5);
     if (lip) {
-      ctx.fillStyle = NIGHT.edge;
+      ctx.fillStyle = look.lip;
       ctx.fillRect(px, py + s * 0.82, s + 0.5, s * 0.18 + 0.5);
     }
   } else {
-    const gap = Math.max(1, scale * 0.04);
-    ctx.fillStyle = NIGHT.grout;
-    ctx.fillRect(px, py, s + 0.5, s + 0.5);
-    ctx.fillStyle = NIGHT.floor;
-    ctx.fillRect(px + gap, py + gap, s - gap, s - gap);
+    floorTile(ctx, look, px, py, s, x, y);
   }
   if (fall > 0) {
+    // the same falling dark in every theme
     ctx.fillStyle = `rgb(4 5 10 / ${fall})`;
     ctx.fillRect(px, py, s + 0.5, s + 0.5);
   } else if (depth > -SHAKE_AHEAD) {
@@ -75,7 +76,7 @@ export function tile(v: View, x: number, y: number, isWall: boolean, lip: boolea
 export function floor(v: View): void {
   const { maze } = v;
   const wall = (x: number, y: number) => maze.rows[y]?.[x] === "#";
-  v.ctx.fillStyle = NIGHT.void;
+  v.ctx.fillStyle = (v.look ?? LOOKS.night).void;
   v.ctx.fillRect(v.offX, v.offY, maze.w * v.scale, maze.h * v.scale);
   for (let y = 0; y < maze.h; y++) {
     for (let x = 0; x < maze.w; x++) tile(v, x, y, wall(x, y), !wall(x, y + 1) && y + 1 < maze.h, -Infinity, 0);

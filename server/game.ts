@@ -1,4 +1,4 @@
-import { toMaze } from "../shared/maps.ts";
+import { THEMES, toMaze, type Theme } from "../shared/maps.ts";
 import { generateMaze, mazeCells, rng } from "./maze.ts";
 import {
   BEAM_RANGE,
@@ -56,6 +56,7 @@ export interface PickedMap {
   id: number;
   name: string;
   rows: string[];
+  theme: Theme;
 }
 
 export const COUNTDOWN_MS = 3000;
@@ -133,6 +134,8 @@ export class Game {
   map: PickedMap | null = null;
   phaseEndsAt = 0;
   maze: Maze;
+  // the look this round is drawn in: the picked map's, or one at random for a fresh maze
+  theme: Theme = "night";
   roundId = 0;
   // the last one standing, or in teams the side left
   winner: string | null = null;
@@ -639,6 +642,7 @@ export class Game {
     // a picked map as it was drawn; otherwise the maze grows with the room so
     // a crowd still has space to hide
     this.maze = this.map ? toMaze(this.map.rows) : generateMaze(mazeCells(players.length), this.seed);
+    this.theme = this.map ? this.map.theme : THEMES[Math.floor(Math.random() * THEMES.length)];
     this.winner = null;
     this.winnerTeam = null;
     for (const p of players) {
@@ -788,6 +792,7 @@ export class Game {
       phase: this.phase,
       mode: this.mode,
       maze: this.maze.rows,
+      theme: this.theme,
       winner: this.winner && (this.players.get(this.winner)?.name ?? null),
       winnerTeam: this.winnerTeam,
     };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateMaze, mazeCells } from "../server/maze.ts";
-import { MAP_MAX, MIN_SPOTS, cleanMapName, mapProblem, unreachable } from "../shared/maps.ts";
+import { MAP_MAX, MIN_SPOTS, THEMES, cleanMapName, cleanTheme, mapProblem, unreachable } from "../shared/maps.ts";
 
 // The rules a hand-made map has to keep before anyone can play on it. The
 // editor and the server both ask these, so the wording is what a mapmaker reads.
@@ -63,5 +63,14 @@ describe("a hand-made map", () => {
     expect(cleanMapName("   ")).toBe(null);
     expect(cleanMapName("x".repeat(40))?.length).toBe(24);
     expect(cleanMapName(7)).toBe(null);
+  });
+
+  it("a map's theme is one of the five", () => {
+    expect([...THEMES].sort()).toEqual(["catacombs", "foundry", "garden", "manor", "night"]);
+    for (const t of THEMES) expect(cleanTheme(t)).toBe(t);
+    expect(cleanTheme("swamp")).toBe(null);
+    expect(cleanTheme("Night")).toBe(null);
+    expect(cleanTheme(3)).toBe(null);
+    expect(cleanTheme(undefined)).toBe(null);
   });
 });
