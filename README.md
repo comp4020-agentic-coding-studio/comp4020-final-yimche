@@ -56,7 +56,8 @@ still in the dark wins the round.
 7. Powerups lie about the maze and glow through the dark, spread out so no
    corner has them all. Walk over one to pick it up; it's yours until you use
    it, with <kbd>Space</kbd> or by tapping the slot at the bottom. You carry
-   one at a time: walking over another swaps it in and the old one is gone.
+   one at a time: walking over another swaps it in and the old one is gone,
+   and a notice says which you lost.
    Whatever you pick up while a speed boost or x-ray torch is running waits
    until that one wears off. Each powerup taken turns up again somewhere else
    in the maze, more than five tiles from anyone, so there's no spot worth

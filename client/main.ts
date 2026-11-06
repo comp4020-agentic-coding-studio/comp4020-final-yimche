@@ -293,7 +293,12 @@ function handle(msg: { t: string } & Record<string, any>): void {
     case "state": {
       const first = !state?.me;
       const was = state?.phase;
+      const held = state?.phase === "playing" ? state.me?.item : null;
       state = msg as unknown as State;
+      // walking over a powerup while carrying another swaps it in; say what
+      // was lost, so a freeze you were saving doesn't just vanish
+      const now = state.phase === "playing" ? state.me?.item : null;
+      if (held && now && now !== held) notice(`${NAMES[now]} picked up; your ${NAMES[held]} is gone`);
       if (first && state.me) Object.assign(drawn, { x: state.me.x, y: state.me.y });
       if (state.phase === "playing" && was !== "playing") {
         round.startedAt = performance.now();
