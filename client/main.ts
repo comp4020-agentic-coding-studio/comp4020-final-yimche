@@ -953,16 +953,25 @@ function renderRoster(): void {
 }
 
 // Each catch shows under the banner for a few seconds, newest on top, and
-// only the last few stay so the stack never covers the maze.
+// only the last few stay so the stack never covers the maze. The same
+// notice again while it's still the newest (Space pressed over and over)
+// just stays up longer instead of stacking copies of itself.
 const NOTICE_MS = 4000;
+const noticeTimers = new WeakMap<HTMLLIElement, number[]>();
 function notice(text: string): void {
   const list = $("notices");
-  const li = document.createElement("li");
-  li.textContent = text;
-  list.prepend(li);
-  while (list.children.length > 3) list.lastElementChild!.remove();
-  setTimeout(() => li.classList.add("gone"), NOTICE_MS);
-  setTimeout(() => li.remove(), NOTICE_MS + 600);
+  const top = list.firstElementChild as HTMLLIElement | null;
+  const li = top && top.textContent === text && !top.classList.contains("gone") ? top : document.createElement("li");
+  if (li === top) for (const id of noticeTimers.get(li) ?? []) clearTimeout(id);
+  else {
+    li.textContent = text;
+    list.prepend(li);
+    while (list.children.length > 3) list.lastElementChild!.remove();
+  }
+  noticeTimers.set(li, [
+    window.setTimeout(() => li.classList.add("gone"), NOTICE_MS),
+    window.setTimeout(() => li.remove(), NOTICE_MS + 600),
+  ]);
 }
 
 // ---------- the floating window ----------
