@@ -346,3 +346,17 @@ it("only the host's pick counts, and a map that isn't in the library is ignored"
   host.ws.close();
   guest.ws.close();
 });
+
+it("How to play shows the catch, the stun, the flash and the freeze, each with a description and its own Play button", async () => {
+  const { JSDOM } = await import("jsdom");
+  const html = await (await fetch(new URL("/", baseUrl))).text();
+  const help = new JSDOM(html).window.document.getElementById("panel-help")!;
+  for (const id of ["demo-catch", "demo-stun", "demo-flash", "demo-freeze"]) {
+    const canvas = help.querySelector(`canvas#${id}`);
+    expect(canvas, `${id} is in How to play`).not.toBeNull();
+    expect(canvas!.getAttribute("role")).toBe("img");
+    expect(canvas!.getAttribute("aria-label")?.length ?? 0).toBeGreaterThan(20);
+    const play = help.querySelector(`[data-play="${id}"]`);
+    expect(play?.getAttribute("aria-label"), `${id}'s Play button names its demo`).toMatch(/^Play the \w+ demo$/);
+  }
+});

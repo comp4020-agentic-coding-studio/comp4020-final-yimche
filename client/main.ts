@@ -15,7 +15,7 @@ import {
 import { initDemos, showDemos, stopDemos } from "./demos.ts";
 import { startEditor } from "./editor.ts";
 import * as look from "./look.ts";
-import { ICE, LIGHT, PLAYER_COLOURS, SHAKE_AHEAD, type View } from "./look.ts";
+import { ICE, LIGHT, LIT, PLAYER_COLOURS, SHAKE_AHEAD, type View } from "./look.ts";
 import { openMapTable, wireMapTable } from "./maptable.ts";
 import { LOOKS, type Look } from "./themes.ts";
 
@@ -640,7 +640,7 @@ function shards(o: NonNullable<typeof out>, since: number): void {
   const sx = offX + o.x * scale;
   const sy = offY + o.y * scale;
   const r = PLAYER_RADIUS * scale;
-  ctx.fillStyle = o.by ? "#f06e5a" : colourOf(myId);
+  ctx.fillStyle = o.by ? LIT : colourOf(myId);
   if (reducedMotion.matches) {
     ctx.globalAlpha = 1 - k;
     ctx.beginPath();

@@ -362,10 +362,11 @@ export class Game {
   // random room ahead of where you face. A freeze stops every rival in your
   // beam right now, walls in the way, and with nobody there it isn't spent.
   // A rival's decoy in the beam is frozen too, in look only: it shows frost
-  // for the same time, so a freeze never tells you which was the decoy. A decoy is a still
-  // copy of you where you stand, facing where you face; like a freeze it's
-  // over in an instant for you, and a new one replaces the old. A blackout dims every rival's torch to half its reach for a few
-  // seconds, and is over in an instant for you too. Nothing can be used while
+  // for the same time, so a freeze never tells you which was the decoy. A
+  // decoy is a still copy of you where you stand, facing where you face; like
+  // a freeze it's over in an instant for you, and a new one replaces the old.
+  // A blackout dims every rival's torch to half its reach for a few seconds,
+  // and is over in an instant for you too. Nothing can be used while
   // you're frozen yourself. Returns whether it was used.
   use(id: string, now: number): boolean {
     const p = this.players.get(id);

@@ -3,10 +3,10 @@
 // tiny open room, but whether someone is lit, safe, caught or frozen is
 // decided by the same isBehind, inBeam and the other rules from
 // shared/world.ts the server judges by, drawn with the same look.ts the game
-// itself draws with. A demo can never show a rule the game doesn't keep.
+// itself draws with. The stun demo's timing is scripted to fit a tiny room;
+// the catch and freeze demos are judged frame by frame by the shared rules.
 
 import {
-  BEAM_RANGE,
   CATCH_COOLDOWN_SECONDS,
   CATCH_SECONDS,
   COLLIDE_DISTANCE,
