@@ -66,51 +66,95 @@ function fill(v: View, x: number, y: number, facing: number, colour: string): vo
   v.ctx.fill();
 }
 
-// ---------- 1. Catching: the safe quarter, then the catch ----------
+// 1. Catching: the safe quarter, then the catch
 
-// The rival stands still, facing east. The seeker circles all the way round
-// it once a loop: starting right in front (safe, however long the beam
-// holds), sweeping through the side and the back (where a held beam catches)
-// and back to the front again, so the loop's start and end line up exactly.
-// Whether the rival is lit, catchable and finally caught is worked out the
-// way the server works it out: a beam held on someone outside their front
-// 90 degrees, for CATCH_SECONDS, catches them.
+// The rival stands still, facing east. The seeker starts right in front of
+// it, beam on its face, and sways a little: safe, however long the beam
+// holds. Then it circles round to the rival's side, where a held beam
+// catches, and the rival is out. Whether the rival is catchable and when
+// it's caught is worked out the way the server works it out: a beam held on
+// someone outside their front 90 degrees, for CATCH_SECONDS, catches them.
+// The path is an ellipse that stays inside the room's walls.
 function catchingDemo(): Demo {
   const rival: Body = { x: 4.5, y: 3, facing: 0 };
-  const radius = 2.4;
-  const pos = (t: number, seconds: number): Body => {
-    const a = (t / seconds) * Math.PI * 2;
-    const x = rival.x + Math.cos(a) * radius;
-    const y = rival.y + Math.sin(a) * radius;
+  const seconds = 6;
+  const sway = 1.6; // in front, swaying
+  const circle = 3.4; // round to the side
+  const angle = (t: number): number => {
+    if (t < sway) return 0.25 * Math.sin((Math.PI * t) / sway);
+    return ease(Math.min(1, (t - sway) / (circle - sway))) * (Math.PI / 2);
+  };
+  const pos = (t: number): Body => {
+    const a = angle(t);
+    const x = rival.x + Math.cos(a) * 2.4;
+    const y = rival.y + Math.sin(a) * 1.6;
     return { x, y, facing: Math.atan2(rival.y - y, rival.x - x) };
   };
-  // exposure, sampled the way the server accumulates it: reset to 0 the
-  // moment the beam isn't held somewhere catchable, otherwise it grows.
-  const seconds = 6;
-  const hz = 120;
-  const exposure: number[] = [];
-  let held = 0;
-  for (let i = 0; i < seconds * hz; i++) {
-    const seeker = pos(i / hz, seconds);
-    const catchable = inBeam(ROOM, seeker, rival) && isBehind(rival, seeker);
-    held = catchable ? Math.min(CATCH_SECONDS, held + 1 / hz) : 0;
-    exposure.push(held);
-  }
+  const { held, caughtAt } = expose(seconds, (t) => {
+    const seeker = pos(t);
+    return inBeam(ROOM, seeker, rival) && isBehind(rival, seeker);
+  });
   return {
     id: "demo-catch",
     seconds,
-    keyFrame: seconds * 0.55, // mid-sweep, caught and lit red
+    keyFrame: caughtAt + 0.15,
     draw(v, t) {
-      const seeker = pos(t, seconds);
-      const lit = inBeam(ROOM, seeker, rival);
-      const caught = exposure[Math.min(exposure.length - 1, Math.floor((t / seconds) * exposure.length))] >= CATCH_SECONDS;
+      const seeker = pos(t);
       drawFloor(v);
-      safeCone(v, rival);
-      if (lit) fill(v, seeker.x, seeker.y, seeker.facing, `rgb(${LIGHT} / 0.26)`);
-      dot(v, rival.x, rival.y, rival.facing, RIVAL, "", lit && caught);
+      if (t < caughtAt) safeCone(v, rival);
+      fill(v, seeker.x, seeker.y, seeker.facing, `rgb(${LIGHT} / 0.26)`);
+      target(v, rival, t, caughtAt, held(t) > 0);
       dot(v, seeker.x, seeker.y, seeker.facing, SEEKER, "");
+      seamFade(v, t, seconds);
     },
   };
+}
+
+// How long a beam has been held somewhere catchable at each moment of a
+// loop, sampled the way the server accumulates it (reset to 0 the moment
+// it isn't), and the first moment it reaches CATCH_SECONDS: the catch.
+function expose(seconds: number, catchable: (t: number) => boolean): { held: (t: number) => number; caughtAt: number } {
+  const hz = 120;
+  const samples: number[] = [];
+  let held = 0;
+  let caughtAt = Infinity;
+  for (let i = 0; i < seconds * hz; i++) {
+    held = catchable(i / hz) ? held + 1 / hz : 0;
+    if (held >= CATCH_SECONDS && caughtAt === Infinity) caughtAt = i / hz;
+    samples.push(held);
+  }
+  return { held: (t) => samples[Math.min(samples.length - 1, Math.floor(t * hz))], caughtAt };
+}
+
+// The target of a catch: red while a beam is on it somewhere it can be
+// caught, then once caught it fades out of the round, labelled so a new
+// player reads it as out rather than just lit.
+function target(v: View, body: Body, t: number, caughtAt: number, catchable: boolean): void {
+  if (t < caughtAt) {
+    dot(v, body.x, body.y, body.facing, RIVAL, "", catchable);
+    return;
+  }
+  const { ctx, scale } = v;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1 - (t - caughtAt) / 0.7);
+  dot(v, body.x, body.y, body.facing, RIVAL, "", true);
+  ctx.globalAlpha = Math.min(1, (t - caughtAt) / 0.2);
+  ctx.font = `600 ${Math.max(11, Math.round(scale * 0.55))}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#eef0f5";
+  ctx.fillText("Caught", v.offX + body.x * scale, v.offY + (body.y - 0.5) * scale);
+  ctx.restore();
+}
+
+// Fades the room to dark over the last moments of a loop and back up over
+// the first, so a loop whose end and start are in different places doesn't
+// jump at the seam.
+function seamFade(v: View, t: number, seconds: number): void {
+  const edge = Math.min(t / 0.3, (seconds - t) / 0.4);
+  if (edge >= 1) return;
+  const { ctx, scale, offX, offY } = v;
+  ctx.fillStyle = `rgb(4 5 10 / ${1 - Math.max(0, edge)})`;
+  ctx.fillRect(offX, offY, ROOM.w * scale, ROOM.h * scale);
 }
 
 // The 90 degree wedge in front of a player, faintly shaded, so a demo shows
@@ -129,7 +173,7 @@ function safeCone(v: View, body: Body): void {
   ctx.fill();
 }
 
-// ---------- 2. The stun: a head-on bump ----------
+// 2. The stun: a head-on bump
 
 // Two players walk toward each other, face to face, and bump: the ring
 // holds steady while they're still lighting each other, then once they both
@@ -190,6 +234,8 @@ function stunDemo(): Demo {
       const cooldownMs = t < turn ? (held ? CATCH_COOLDOWN_SECONDS * 1000 : 0) : Math.max(0, (cooldownEnds - t) * 1000);
 
       drawFloor(v);
+      fill(v, v1.x, v1.y, v1.facing, `rgb(${LIGHT} / 0.2)`);
+      fill(v, v2.x, v2.y, v2.facing, `rgb(${LIGHT} / 0.2)`);
       dot(v, v1.x, v1.y, v1.facing, SEEKER, "");
       dot(v, v2.x, v2.y, v2.facing, RIVAL, "");
       if (cooldownMs > 0) {
@@ -200,7 +246,7 @@ function stunDemo(): Demo {
   };
 }
 
-// ---------- 3. The flash: everyone shows at once ----------
+// 3. The flash: everyone shows at once
 
 // A few players sit in the dark, each out of sight of a lone watcher. Every
 // so often the whole room lights up for a moment and all of them show, the
@@ -224,7 +270,11 @@ function flashDemo(): Demo {
       const since = t < peakAt ? t + seconds - fadeOver : t - peakAt; // wraps cleanly
       const flash = Math.max(0, 1 - since / fadeOver) ** 2;
       drawFloor(v);
+      // the others show only in the flash, as the server's fog would have it
+      v.ctx.save();
+      v.ctx.globalAlpha = Math.min(1, flash * 3);
       for (const o of others) dot(v, o.x, o.y, o.facing, RIVAL, "");
+      v.ctx.restore();
       dot(v, watcher.x, watcher.y, watcher.facing, SEEKER, "");
       // the dark, lifted by the flash and a small aura the watcher always has
       const { ctx, scale, offX, offY } = v;
@@ -244,66 +294,63 @@ function flashDemo(): Demo {
   };
 }
 
-// ---------- 4. Freeze: the beam turns ice, then the catch ----------
+// 4. Freeze: the beam turns ice, then the catch
 
-// The rival stands with its back turned. The seeker closes in; the moment
-// the rival is in reach, the beam turns ice exactly as it would if a freeze
-// were in hand and ready, the rival freezes solid, and the seeker steps
-// round to the back and holds the beam for the catch.
+// The rival stands with its back turned. The seeker walks in looking away,
+// then turns its torch onto the rival: the moment the rival is in its beam,
+// the beam turns ice exactly as it would with a freeze in hand and ready.
+// The rival freezes solid, and the seeker steps round to the back and holds
+// the beam for the catch. The walk in ends where the step round begins.
 function freezeDemo(): Demo {
-  const rival: Body = { x: 6, y: 3, facing: Math.PI }; // back already turned
+  const rival: Body = { x: 6, y: 3, facing: Math.PI }; // back turned to the east
   const seconds = 7;
   const freezeAt = 2.2;
-  const thawAt = freezeAt + Math.min(3.2, FREEZE_MS / 1000);
+  const thawAt = freezeAt + FREEZE_MS / 1000;
+  const rx = 1.6; // the step round is an ellipse that stays inside the walls
+  const ry = 1.6;
   const seekerPos = (t: number): Body => {
     if (t < freezeAt) {
       const k = ease(t / freezeAt);
-      const x = 1.5 + k * (6 - BEAM_RANGE * 0.7 - 1.5);
-      return { x, y: 3, facing: 0 };
+      const x = 1.5 + k * (rival.x - rx - 1.5);
+      const turn = ease(Math.min(1, t / 1.2));
+      return { x, y: 3, facing: -Math.PI / 2 + turn * (Math.PI / 2) };
     }
-    // circles round to the rival's exposed back while it's frozen
-    const k = ease(Math.min(1, (t - freezeAt) / (thawAt - freezeAt)));
-    const a = Math.PI + k * Math.PI * 0.95; // sweeps from the front round behind
-    const r = 1.8;
-    const x = rival.x + Math.cos(a) * r;
-    const y = rival.y + Math.sin(a) * r;
+    const k = ease(Math.min(1, (t - freezeAt) / 2.2));
+    const a = Math.PI + k * Math.PI * 0.95; // from the front, over the top, round behind
+    const x = rival.x + Math.cos(a) * rx;
+    const y = rival.y + Math.sin(a) * ry;
     return { x, y, facing: Math.atan2(rival.y - y, rival.x - x) };
   };
-  const hz = 120;
-  const exposure: number[] = [];
-  let held = 0;
-  for (let i = 0; i < seconds * hz; i++) {
-    const t = i / hz;
+  const { held, caughtAt } = expose(seconds, (t) => {
     const seeker = seekerPos(t);
-    const catchable = t >= freezeAt && inBeam(ROOM, seeker, rival) && isBehind(rival, seeker);
-    held = catchable ? Math.min(CATCH_SECONDS, held + 1 / hz) : 0;
-    exposure.push(held);
-  }
+    return t >= freezeAt && inBeam(ROOM, seeker, rival) && isBehind(rival, seeker);
+  });
   return {
     id: "demo-freeze",
     seconds,
     keyFrame: freezeAt + 0.4,
     draw(v, t) {
       const seeker = seekerPos(t);
-      const ready = t < freezeAt && inBeam(ROOM, seeker, rival); // would land, same test as freezeReady
-      const frozen = t >= freezeAt && t < thawAt;
       const lit = inBeam(ROOM, seeker, rival);
-      const caught = exposure[Math.min(exposure.length - 1, Math.floor((t / seconds) * exposure.length))] >= CATCH_SECONDS;
+      const ready = t < freezeAt && lit; // would land, same test as freezeReady
+      const frozen = t >= freezeAt && t < Math.min(thawAt, caughtAt);
       drawFloor(v);
-      if (lit) fill(v, seeker.x, seeker.y, seeker.facing, ready || frozen ? `rgb(${ICE} / 0.4)` : `rgb(${LIGHT} / 0.26)`);
-      dot(v, rival.x, rival.y, rival.facing, RIVAL, "", lit && caught);
+      fill(v, seeker.x, seeker.y, seeker.facing, ready || frozen ? `rgb(${ICE} / 0.4)` : `rgb(${LIGHT} / 0.26)`);
+      target(v, rival, t, caughtAt, held(t) > 0);
       if (frozen) frost(v, rival.x, rival.y, t * 1000);
       dot(v, seeker.x, seeker.y, seeker.facing, SEEKER, "");
+      seamFade(v, t, seconds);
     },
   };
 }
 
 const DEMOS = [catchingDemo(), stunDemo(), flashDemo(), freezeDemo()];
 
-// ---------- running them ----------
+// running them
 
 let isVisible: () => boolean = () => false;
-let running = false;
+let frame = 0; // the shared loop's pending animation frame, 0 when stopped
+const playing = new Map<string, number>(); // a Play loop's pending frame, by demo
 
 // Called once at startup: how demos.ts knows whether it's safe to draw, so a
 // stray call to showDemos() or a missed stopDemos() never leaves a loop
@@ -315,57 +362,73 @@ export function initDemos(visible: () => boolean): void {
     const play = document.querySelector<HTMLButtonElement>(`[data-play="${demo.id}"]`);
     play?.addEventListener("click", () => canvas && playOnce(demo, canvas));
   }
-  reducedMotion.addEventListener("change", renderStill);
-  renderStill();
+  reducedMotion.addEventListener("change", () => {
+    stopDemos();
+    showDemos();
+  });
+  addEventListener("resize", () => {
+    if (reducedMotion.matches && isVisible()) renderStill();
+  });
+  syncButtons();
+}
+
+function syncButtons(): void {
+  for (const b of document.querySelectorAll<HTMLButtonElement>("[data-play]")) b.hidden = !reducedMotion.matches;
 }
 
 // Reduced motion: every demo holds its key frame, with a Play button next
 // to it that runs one full loop and then settles back on the still frame.
+// Drawn when the tab shows, since a canvas in a closed window has no size.
 function renderStill(): void {
-  for (const b of document.querySelectorAll<HTMLButtonElement>("[data-play]")) b.hidden = !reducedMotion.matches;
-  if (!reducedMotion.matches) return;
   for (const demo of DEMOS) {
+    if (playing.has(demo.id)) continue;
     const canvas = document.getElementById(demo.id) as HTMLCanvasElement | null;
     if (canvas) demo.draw(view(canvas), demo.keyFrame);
   }
 }
 
 function playOnce(demo: Demo, canvas: HTMLCanvasElement): void {
+  if (playing.has(demo.id)) return; // one loop at a time
   const start = performance.now();
   const step = (now: number) => {
     const t = (now - start) / 1000;
-    if (t >= demo.seconds) {
-      demo.draw(view(canvas), demo.keyFrame);
+    if (!isVisible() || t >= demo.seconds) {
+      playing.delete(demo.id);
+      if (isVisible()) demo.draw(view(canvas), demo.keyFrame);
       return;
     }
     demo.draw(view(canvas), t);
-    requestAnimationFrame(step);
+    playing.set(demo.id, requestAnimationFrame(step));
   };
-  requestAnimationFrame(step);
+  playing.set(demo.id, requestAnimationFrame(step));
 }
 
-// Starts the shared loop if it isn't already running. Safe to call whenever
-// the How to play tab might be showing; the loop checks for itself.
+// Starts the demos if the How to play tab is showing: the shared loop, or
+// under reduced motion the still frames. Safe to call any number of times.
 export function showDemos(): void {
-  if (running || reducedMotion.matches) return;
-  running = true;
-  requestAnimationFrame(tick);
+  syncButtons();
+  if (!isVisible()) return;
+  if (reducedMotion.matches) {
+    renderStill();
+    return;
+  }
+  if (!frame) frame = requestAnimationFrame(tick);
 }
 
 export function stopDemos(): void {
-  running = false;
+  cancelAnimationFrame(frame);
+  frame = 0;
+  for (const id of playing.values()) cancelAnimationFrame(id);
+  playing.clear();
 }
 
 function tick(now: number): void {
-  if (!running) return;
-  if (!isVisible()) {
-    running = false;
-    return;
-  }
+  frame = 0;
+  if (!isVisible() || reducedMotion.matches) return;
   for (const demo of DEMOS) {
     const canvas = document.getElementById(demo.id) as HTMLCanvasElement | null;
     if (!canvas || canvas.offsetParent === null) continue; // not on screen right now
     demo.draw(view(canvas), now / 1000 - Math.floor(now / 1000 / demo.seconds) * demo.seconds);
   }
-  requestAnimationFrame(tick);
+  frame = requestAnimationFrame(tick);
 }
