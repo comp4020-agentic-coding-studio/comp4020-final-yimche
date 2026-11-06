@@ -1022,8 +1022,8 @@ button.quiet {
   }
 }
 
-/* The map editor: the grid fills the screen above a bar of tools, both in
-   the night colours, so a map looks here the way it will in a round. */
+/* The map editor: the grid fills the screen above a bar of tools, the grid
+   in the map's theme, so a map looks here the way it will in a round. */
 .editor {
   position: fixed;
   inset: 0;
@@ -1103,6 +1103,24 @@ button.quiet {
   border-color: var(--line);
   color: var(--ink);
   font-weight: 500;
+}
+
+/* On a phone the five themes would wrap one onto a line of its own, so
+   their label takes the row above and the buttons pack a little tighter. */
+@media (max-width: 600px) {
+  #ed-theme {
+    gap: 0.25rem;
+  }
+
+  #ed-theme > span {
+    flex-basis: 100%;
+    text-align: center;
+  }
+
+  #ed-theme button {
+    padding: 0.4rem 0.45rem;
+    font-size: 0.85rem;
+  }
 }
 
 .tool-row [role="radio"][aria-checked="true"] {
