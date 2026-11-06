@@ -1,6 +1,5 @@
 import {
   AURA_RADIUS,
-  BEAM_HALF_ANGLE,
   BEAM_RANGE,
   BLACKOUT_REACH,
   FLASH_MS,
@@ -8,13 +7,15 @@ import {
   PLAYER_RADIUS,
   SPEED_MS,
   XRAY_MS,
-  castRay,
   fallDepth,
   inBeam,
   type Kind,
   type Maze,
 } from "../shared/world.ts";
+import { initDemos, showDemos, stopDemos } from "./demos.ts";
 import { startEditor } from "./editor.ts";
+import * as look from "./look.ts";
+import { ICE, NIGHT, PLAYER_COLOURS, SHAKE_AHEAD, type View } from "./look.ts";
 import { openMapTable, wireMapTable } from "./maptable.ts";
 
 type Phase = "waiting" | "countdown" | "playing" | "ended";
@@ -85,14 +86,9 @@ let mode: Mode = "ffa";
 let roomMap: { id: number; name: string } | null = null;
 const MODE_NAMES: Record<Mode, string> = { ffa: "Free for all", teams: "Teams", duel: "One v one" };
 const TEAM_NAMES: Record<Team, string> = { red: "Red", blue: "Blue" };
-// The night the maze is drawn in, and a colour for each player so you can
-// tell who's who in the dark. A player's colour comes from their id, so it's
-// the same on every screen and from round to round.
-const NIGHT = { floor: "#46536f", grout: "#3a4660", wall: "#121722", edge: "#5a6888", void: "#04050a", light: "255 236 196" };
-const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
+// The night palette and the player colours live in look.ts. A player's colour
+// comes from their id, so it's the same on every screen and from round to round.
 const KIND_COLOURS: Record<Kind, string> = { speed: "#3fbf85", xray: "#9a82f0", teleport: "#ec6ea4", freeze: "#bfeaff", decoy: "#e8b04a", blackout: "#e8574e" };
-// frost: the pale blue a frozen player and their stuck beam are tinted with
-const ICE = "200 238 255";
 const TEAM_COLOURS: Record<Team, string> = { red: "#f08a6c", blue: "#6ea8f5" };
 // In teams, everyone wears their side's colour, so friend and rival read at a glance.
 function colourOf(id: string): string {
@@ -438,20 +434,13 @@ function toScreen(x: number, y: number): [number, number] {
   return [(offX + x * scale) / dpr, (offY + y * scale) / dpr];
 }
 
-// The lit part of a beam, cut short wherever a wall stops it, unless it's an
-// x-ray torch, which goes straight through. A torch dimmed by a blackout
-// reaches half as far, the same reach the server judges it by.
+// The round as look.ts draws it: this maze, at this scale and offset.
+const view = (): View => ({ ctx, maze, scale, offX, offY });
+
+// The lit part of a beam, as a path on c (the maze or the fog), cut short
+// wherever a wall stops it; see look.ts.
 function beam(c: CanvasRenderingContext2D, x: number, y: number, facing: number, xray = false, dimmed = false): void {
-  const range = dimmed ? BEAM_RANGE * BLACKOUT_REACH : BEAM_RANGE;
-  const steps = 48;
-  c.beginPath();
-  c.moveTo(offX + x * scale, offY + y * scale);
-  for (let i = 0; i <= steps; i++) {
-    const a = facing - BEAM_HALF_ANGLE + (2 * BEAM_HALF_ANGLE * i) / steps;
-    const d = xray ? range : castRay(maze, x, y, a, range);
-    c.lineTo(offX + (x + Math.cos(a) * d) * scale, offY + (y + Math.sin(a) * d) * scale);
-  }
-  c.closePath();
+  look.beam(view(), c, x, y, facing, xray, dimmed);
 }
 
 function frame(now: number): void {
@@ -724,51 +713,9 @@ outCard.addEventListener("keydown", (e) => {
 });
 outCard.addEventListener("close", () => canvas.focus());
 
-// How far ahead of the edge a tile starts to shake, and how far behind it a
-// falling tile is gone from sight, both in tiles.
-const SHAKE_AHEAD = 0.6;
-const FALL_DEPTH = 0.8;
-
-// One tile of the maze. Floor tiles sit slightly inset so the grout between
-// them shows the grid; a wall has a lit lip along its bottom when floor lies
-// below it, so it reads as raised. A falling tile shrinks and darkens as it
-// drops, and a fallen one is left as the dark underneath.
+// One tile of the maze, falling or not; see look.ts.
 function tile(x: number, y: number, isWall: boolean, lip: boolean, depth: number, now: number): void {
-  if (depth >= FALL_DEPTH) return;
-  const fall = Math.max(0, depth / FALL_DEPTH);
-  const size = 1 - fall * 0.85;
-  let jx = 0;
-  let jy = 0;
-  if (depth > -SHAKE_AHEAD && depth <= 0) {
-    const k = (1 + depth / SHAKE_AHEAD) * scale * 0.04;
-    jx = Math.sin(now / 37 + x * 7 + y * 3) * k;
-    jy = Math.cos(now / 41 + x * 5 + y * 11) * k;
-  }
-  const px = offX + (x + 0.5 - size / 2) * scale + jx;
-  const py = offY + (y + 0.5 - size / 2) * scale + jy + fall * scale * 0.25;
-  const s = size * scale;
-  if (isWall) {
-    ctx.fillStyle = NIGHT.wall;
-    ctx.fillRect(px, py, s + 0.5, s + 0.5);
-    if (lip) {
-      ctx.fillStyle = NIGHT.edge;
-      ctx.fillRect(px, py + s * 0.82, s + 0.5, s * 0.18 + 0.5);
-    }
-  } else {
-    const gap = Math.max(1, scale * 0.04);
-    ctx.fillStyle = NIGHT.grout;
-    ctx.fillRect(px, py, s + 0.5, s + 0.5);
-    ctx.fillStyle = NIGHT.floor;
-    ctx.fillRect(px + gap, py + gap, s - gap, s - gap);
-  }
-  if (fall > 0) {
-    ctx.fillStyle = `rgb(4 5 10 / ${fall})`;
-    ctx.fillRect(px, py, s + 0.5, s + 0.5);
-  } else if (depth > -SHAKE_AHEAD) {
-    // about to go: a red tinge so you see it coming
-    ctx.fillStyle = `rgb(200 50 50 / ${0.3 * (1 + depth / SHAKE_AHEAD)})`;
-    ctx.fillRect(px, py, s + 0.5, s + 0.5);
-  }
+  look.tile(view(), x, y, isWall, lip, depth, now);
 }
 
 // Would a freeze land if you pressed now? Asked the way the server asks it:
@@ -929,69 +876,16 @@ $("copy").addEventListener("click", async () => {
   canvas.focus();
 });
 
-// A player: their colour, a dark rim, a notch showing which way they face (so
-// you can tell whose back is turned), and their name above. Red when lit.
+// A player, the ice on a frozen one and the stun ring, drawn as look.ts
+// draws them, on the round's maze.
 function dot(x: number, y: number, facing: number, colour: string, label: string, lit = false): void {
-  const sx = offX + x * scale;
-  const sy = offY + y * scale;
-  const r = PLAYER_RADIUS * scale;
-  ctx.fillStyle = lit ? "#f06e5a" : colour;
-  ctx.strokeStyle = "rgb(10 12 20 / 0.7)";
-  ctx.lineWidth = Math.max(1.5, scale * 0.06);
-  ctx.beginPath();
-  ctx.arc(sx, sy, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "rgb(10 12 20 / 0.75)";
-  ctx.beginPath();
-  ctx.arc(sx + Math.cos(facing) * r * 0.5, sy + Math.sin(facing) * r * 0.5, r * 0.28, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgb(10 12 20 / 0.6)";
-  ctx.fillText(label, sx + 1, sy - r - 5 + 1);
-  ctx.fillStyle = "#eef0f5";
-  ctx.fillText(label, sx, sy - r - 5);
+  look.dot(view(), x, y, facing, colour, label, lit);
 }
-
-// Frozen: the dot sealed in a block of ice, a hexagon with a bright rim and a
-// glint, so it reads apart from the stun ring, which is a plain circle.
 function frost(x: number, y: number, now: number): void {
-  const sx = offX + x * scale;
-  const sy = offY + y * scale;
-  const r = PLAYER_RADIUS * scale * 1.35;
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const a = (i * Math.PI) / 3 + Math.PI / 6;
-    ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
-  }
-  ctx.closePath();
-  ctx.fillStyle = `rgb(${ICE} / 0.5)`;
-  ctx.fill();
-  ctx.strokeStyle = `rgb(${ICE} / ${0.85 + 0.15 * Math.sin(now / 300)})`;
-  ctx.lineWidth = Math.max(2, scale * 0.07);
-  ctx.lineJoin = "round";
-  ctx.stroke();
-  ctx.lineJoin = "miter";
-  // a glint across the top left face
-  ctx.strokeStyle = "rgb(255 255 255 / 0.85)";
-  ctx.lineWidth = Math.max(1.5, scale * 0.05);
-  ctx.beginPath();
-  ctx.moveTo(sx - r * 0.55, sy - r * 0.15);
-  ctx.lineTo(sx - r * 0.15, sy - r * 0.55);
-  ctx.stroke();
+  look.frost(view(), x, y, now);
 }
-
-// A ring while a head-on bump or stand-off shields a pair from catching each other: steady
-// while a torch holds the stun, then flashing once the countdown runs, faster
-// in its last second so the end is no surprise.
 function shield(x: number, y: number, cooldownMs: number, held: boolean, now: number): void {
-  if (cooldownMs <= 0) return;
-  const rate = cooldownMs < 1000 ? 10 : 4; // blinks per second
-  const on = held ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * rate * Math.PI * 2);
-  ctx.strokeStyle = `rgb(140 205 255 / ${0.25 + 0.75 * on})`;
-  ctx.lineWidth = Math.max(2, scale * 0.08);
-  ctx.beginPath();
-  ctx.arc(offX + x * scale, offY + y * scale, PLAYER_RADIUS * scale * 1.7, 0, Math.PI * 2);
-  ctx.stroke();
+  look.shield(view(), x, y, cooldownMs, held, now);
 }
 
 function bannerText(s: State): string {
@@ -1078,6 +972,7 @@ function showTab(name: string, focus = false): void {
     $(tab.getAttribute("aria-controls")!).hidden = !on;
     if (on && focus) tab.focus();
   }
+  syncDemos();
 }
 
 function openWindow(name: string): void {
@@ -1088,9 +983,20 @@ function openWindow(name: string): void {
     win.showModal();
   }
   $(`tab-${name}`).focus();
+  syncDemos();
 }
 
-win.addEventListener("close", () => canvas.focus());
+// The How to play demos run only while that tab shows in an open window, so
+// nothing is drawn to a closed window or behind the Scores tab.
+function syncDemos(): void {
+  if (win.open && !$("panel-help").hidden) showDemos();
+  else stopDemos();
+}
+
+win.addEventListener("close", () => {
+  canvas.focus();
+  syncDemos();
+});
 $("window-close").addEventListener("click", () => win.close());
 // a click on the backdrop lands on the dialog itself, outside its box
 win.addEventListener("click", (e) => {
@@ -1167,6 +1073,7 @@ async function refreshRecord(): Promise<void> {
 
 if (editing) startEditor();
 else {
+  initDemos(() => win.open && !$("panel-help").hidden);
   requestAnimationFrame(frame);
   start();
 }

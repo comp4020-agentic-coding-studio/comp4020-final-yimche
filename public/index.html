@@ -120,10 +120,22 @@
         <h3>Catching</h3>
         <p>You see only what your torch lights and a small circle around you. Keep your beam on someone from behind or
           from the side and they're out. The quarter in front of them is safe: they can see you coming.</p>
+        <div class="demo">
+          <canvas id="demo-catch" role="img" aria-label="A seeker's torch on a rival's face does nothing; circling round to the side and holding the beam catches them."></canvas>
+          <button type="button" class="demo-play" data-play="demo-catch" hidden>Play</button>
+        </div>
         <p>Bump into someone head on, or light each other at once, and you're both stunned: no catches between you
           until the light comes off and the ring stops flashing.</p>
+        <div class="demo">
+          <canvas id="demo-stun" role="img" aria-label="Two players walk into each other head on and are stunned, shown as a ring round each, until the light comes off and the ring stops flashing."></canvas>
+          <button type="button" class="demo-play" data-play="demo-stun" hidden>Play</button>
+        </div>
         <h3>The flash</h3>
         <p>Every ten seconds the whole maze lights up for a moment, and everyone still in shows with it.</p>
+        <div class="demo">
+          <canvas id="demo-flash" role="img" aria-label="The dark lifts off the whole maze for a moment, showing everyone still in, then settles back."></canvas>
+          <button type="button" class="demo-play" data-play="demo-flash" hidden>Play</button>
+        </div>
         <h3>Powerups</h3>
         <p>Walk over one to carry it, one at a time, and use it with <kbd>Space</kbd> or by tapping the slot at the bottom.</p>
         <ul>
@@ -134,6 +146,10 @@
           <li><b class="decoy">Decoy</b> leaves a still copy of you for eight seconds. It looks just like you to everyone else, and can't be caught.</li>
           <li><b class="blackout">Blackout</b> shortens every rival's torch to half its reach for four seconds.</li>
         </ul>
+        <div class="demo">
+          <canvas id="demo-freeze" role="img" aria-label="A seeker's beam turns ice blue on a rival in reach, the rival freezes solid, and the seeker steps round behind to catch them."></canvas>
+          <button type="button" class="demo-play" data-play="demo-freeze" hidden>Play</button>
+        </div>
         <h3>The falling floor</h3>
         <p>A minute in, the floor starts falling away from the edges toward the middle. A tile shakes and glows red
           before it goes; step onto a fallen one and you're out.</p>

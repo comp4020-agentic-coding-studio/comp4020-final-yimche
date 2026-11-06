@@ -36,7 +36,12 @@ still in the dark wins the round.
    many opponents are still in; each catch shows briefly under the banner.
    Its How to play and Scores buttons open one window with a tab for each:
    the rules, and your record beside the best seekers board. How to play
-   opens by itself the first time you join.
+   opens by itself the first time you join. Beside the rules that are easiest
+   to get wrong, a short looping demo shows the rule rather than just
+   describing it: the catch angle, the head-on stun, the flash and the
+   freeze each play out on a small maze, drawn and judged by the same rules
+   the game itself uses. With reduced motion on, each holds its key moment
+   still, with a button to play it once.
 5. You can only see what your torch lights, plus a small circle around you.
    Keep your beam on someone from behind or from the side and they're out.
    Only the quarter in front of them, 45° either side of where they're
