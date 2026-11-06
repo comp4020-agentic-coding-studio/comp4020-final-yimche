@@ -35,6 +35,9 @@ export function readyEdge(v: View, now: number): void {
   ctx.stroke();
   ctx.restore();
 }
+// the stun ring: a soft white, apart from a freeze's ice and every
+// powerup's colour, so a shield never reads as frost
+export const STUN = "236 236 244";
 // the red a player turns while a beam is on their back or side
 export const LIT = "#f06e5a";
 
@@ -174,7 +177,7 @@ export function shield(v: View, x: number, y: number, cooldownMs: number, held: 
   const { ctx, scale } = v;
   const rate = cooldownMs < 1000 ? 10 : 4; // blinks per second
   const on = held ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * rate * Math.PI * 2);
-  ctx.strokeStyle = `rgb(140 205 255 / ${0.25 + 0.75 * on})`;
+  ctx.strokeStyle = `rgb(${STUN} / ${0.25 + 0.75 * on})`;
   ctx.lineWidth = Math.max(2, scale * 0.08);
   ctx.beginPath();
   ctx.arc(v.offX + x * scale, v.offY + y * scale, PLAYER_RADIUS * scale * 1.7, 0, Math.PI * 2);
