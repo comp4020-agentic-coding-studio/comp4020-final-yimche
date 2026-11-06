@@ -23,6 +23,18 @@ export const LIGHT = "255 236 196";
 export const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
 // frost: the pale blue a frozen player and their stuck beam are tinted with
 export const ICE = "200 238 255";
+// A freeze that would land: the beam's path, already filled, gets a bright
+// ice edge that pulses, so "ready" reads apart from a frozen beam, which is
+// only a flat pale tint. Call it straight after filling the beam's path.
+export function readyEdge(v: View, now: number): void {
+  const { ctx, scale } = v;
+  ctx.save();
+  ctx.strokeStyle = `rgb(${ICE} / ${0.7 + 0.3 * Math.sin(now / 160)})`;
+  ctx.lineWidth = Math.max(2, scale * 0.09);
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.restore();
+}
 // the red a player turns while a beam is on their back or side
 export const LIT = "#f06e5a";
 

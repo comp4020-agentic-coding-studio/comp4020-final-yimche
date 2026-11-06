@@ -490,9 +490,10 @@ function frame(now: number): void {
   if (playing && me) {
     const ready = freezeReady(state);
     ctx.fillStyle =
-      me.frozenMs > 0 ? `rgb(${ICE} / 0.36)` : ready ? `rgb(${ICE} / 0.42)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${LIGHT} / 0.3)`;
+      me.frozenMs > 0 ? `rgb(${ICE} / 0.28)` : ready ? `rgb(${ICE} / 0.42)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${LIGHT} / 0.3)`;
     beam(ctx, drawn.x, drawn.y, me.facing, myXray, myDim);
     ctx.fill();
+    if (ready) look.readyEdge(view(), now);
   }
 
   // a flash lifts the dark off the whole maze, then lets it settle back

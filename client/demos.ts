@@ -17,7 +17,7 @@ import {
   type Body,
   type Maze,
 } from "../shared/world.ts";
-import { ICE, LIGHT, dot, floor as drawFloor, frost, shield, beam as torchBeam, type View } from "./look.ts";
+import { ICE, LIGHT, dot, readyEdge, floor as drawFloor, frost, shield, beam as torchBeam, type View } from "./look.ts";
 
 // A small open room, walled all round: enough space to show the motion, with
 // nothing in the middle to hide the geometry it's demonstrating.
@@ -335,7 +335,8 @@ function freezeDemo(): Demo {
       const ready = t < freezeAt && lit; // would land, same test as freezeReady
       const frozen = t >= freezeAt && t < Math.min(thawAt, caughtAt);
       drawFloor(v);
-      fill(v, seeker.x, seeker.y, seeker.facing, ready || frozen ? `rgb(${ICE} / 0.4)` : `rgb(${LIGHT} / 0.26)`);
+      fill(v, seeker.x, seeker.y, seeker.facing, ready ? `rgb(${ICE} / 0.4)` : frozen ? `rgb(${ICE} / 0.26)` : `rgb(${LIGHT} / 0.26)`);
+      if (ready) readyEdge(v, t * 1000);
       target(v, rival, t, caughtAt, held(t) > 0);
       if (frozen) frost(v, rival.x, rival.y, t * 1000);
       dot(v, seeker.x, seeker.y, seeker.facing, SEEKER, "");
