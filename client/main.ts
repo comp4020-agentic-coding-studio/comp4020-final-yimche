@@ -394,8 +394,10 @@ addEventListener("keydown", (e) => {
   if (document.activeElement !== canvas || dialogOpen()) return;
   toggleSound();
 });
+// pointerup, not pointerdown: a phone only counts a tap as the gesture that
+// may start audio once the finger lifts
 addEventListener("keydown", sound.wake);
-addEventListener("pointerdown", sound.wake);
+addEventListener("pointerup", sound.wake);
 
 addEventListener("keydown", (e) => {
   const dir = keyDirection(e);
