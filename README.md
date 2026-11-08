@@ -79,16 +79,16 @@ still in the dark wins the round.
      aim at them. For those five seconds you, and only you, see where they
      stand: they show through the walls and the dark, ringed in ice, and a
      notice names who you froze. The reveal ends when the freeze does, or
-     sooner if they're caught or fall. Nobody else is told anything. A frozen player can still be
-     caught, and their beam still catches whoever walks into it. A freeze
-     only ever picks a real player, never a decoy, but a frozen player's
-     decoy shows frozen too, for the same time, so anyone else who sees both
-     still can't tell which is which; only you, while you're shown where
-     they are, know the real one. Using another freeze moves the reveal to
-     its new rival. The one frozen is told a rival can see them, but not
-     who. With no rival left it doesn't go off
-     and stays in your slot. While you're frozen you can't use your own
-     powerup until it wears off.
+     sooner if they're caught or fall, or you are, and using another freeze
+     moves it to the new rival. No other player is shown them. The one
+     frozen is told a rival may see them, but not who. A frozen player can
+     still be caught, and their beam still catches whoever walks into it.
+     A freeze only ever picks a real player, never a decoy, but a frozen
+     player's decoy shows frozen too, for the same time, so anyone else who
+     sees both still can't tell which is which; only you, while you're
+     shown where they are, know the real one. With no rival left it doesn't
+     go off and stays in your slot. While you're frozen you can't use your
+     own powerup until it wears off.
    - **Decoy**: leaves a still copy of you where you stand, facing where you
      face, for eight seconds. To everyone else it looks exactly like you: it
      hides in the dark and shows in a flash like anyone, and nothing marks it

@@ -296,14 +296,17 @@ it("a freeze over the wire: the user is shown the rival it stopped, and that riv
   expect(shown.others).toContainEqual(expect.objectContaining({ frozen: true, revealed: true }));
   const frozen = await within(1000, () => other.messages.findLast((m) => m.t === "state" && m.me.frozenMs > 0));
   expect(frozen.others.some((o: any) => "revealed" in o)).toBe(false);
-  // the frozen rival presses Space: refused, said why, and kept
+  // the frozen rival presses Space: refused, said why, and kept. A powerup can
+  // turn up underfoot on a small map and swap in, so it's whatever they hold
+  const held = other.messages.findLast((m) => m.t === "state").me.item;
+  expect(held).not.toBeNull();
   const mark = other.messages.length;
   other.ws.send(JSON.stringify({ t: "use" }));
   const refused = await within(1000, () => other.messages.slice(mark).find((m) => m.t === "used"));
-  expect(refused).toEqual({ t: "used", kind: "speed", ok: false, frozen: true });
+  expect(refused).toEqual({ t: "used", kind: held, ok: false, frozen: true });
   const at = other.messages.indexOf(refused);
   const next = await within(1000, () => other.messages.slice(at).find((m) => m.t === "state"));
-  expect(next.me.item).toBe("speed");
+  expect(next.me.item).toBe(held);
   // each answer goes to the one who pressed, nobody else
   expect(host.messages.filter((m) => m.t === "used")).toHaveLength(1);
   host.ws.close();

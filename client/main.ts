@@ -949,8 +949,9 @@ function bannerText(s: State): string {
       if (s.me?.status === "spectating" && mode === "duel") return "Watching the duel; you're up when it's your turn";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
       if (s.me?.lit) return "You're in someone's light. Move!";
-      // a rival's freeze shows you to them, though nobody is named
-      if (s.me?.frozenMs) return `Frozen! ${Math.ceil(s.me.frozenMs / 1000)}s; a rival can see you`;
+      // a rival's freeze shows you to them, though nobody is named; "may",
+      // since the reveal ends early if they go out or freeze someone else
+      if (s.me?.frozenMs) return `Frozen! ${Math.ceil(s.me.frozenMs / 1000)}s; a rival may see you`;
       if (s.me?.dimmedMs) return `Blackout! Your torch is dimmed for ${Math.ceil(s.me.dimmedMs / 1000)}s`;
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
