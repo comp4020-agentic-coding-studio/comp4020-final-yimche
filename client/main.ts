@@ -298,6 +298,7 @@ function handle(msg: { t: string } & Record<string, any>): void {
     case "used":
       if (msg.ok || !msg.kind) break;
       if (msg.frozen) notice("You can't use a powerup while frozen");
+      else if (state?.me && (state.me.speedMs > 0 || state.me.xrayMs > 0)) notice(`Wait for your ${state.me.speedMs > 0 ? "speed" : "x-ray"} to run out`);
       else if (msg.kind === "freeze") notice("Nobody in your beam to freeze");
       break;
     case "state": {
@@ -379,8 +380,8 @@ $("slot").addEventListener("click", use);
 // won't play any before one; while it's off, nothing is started at all.
 const soundButton = $<HTMLButtonElement>("sound");
 function showSound(): void {
+  // the words carry the state; a pressed state too would read as a double negative
   soundButton.textContent = sound.soundOn() ? "Sound on" : "Sound off";
-  soundButton.setAttribute("aria-pressed", String(sound.soundOn()));
 }
 function toggleSound(): void {
   sound.setSound(!sound.soundOn());

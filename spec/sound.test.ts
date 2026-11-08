@@ -23,6 +23,11 @@ describe("sound follows only what you're told", () => {
     expect(cues(s, s, { t: "catch", catcherId: "ann", caughtId: "bob" }, ME)).toEqual(["catch"]);
   });
 
+  it("a rival the dark takes plays the fall, not a catch", () => {
+    const s = heard();
+    expect(cues(s, s, { t: "catch", catcherId: null, caughtId: "bob" }, ME)).toEqual(["fell"]);
+  });
+
   it("being caught plays the caught cue, not the catch cue", () => {
     const s = heard();
     expect(cues(s, s, { t: "catch", catcherId: "ann", caughtId: "me" }, ME)).toEqual(["caught"]);
@@ -115,6 +120,8 @@ it("the HUD has a sound toggle", async () => {
   const toggle = hud.querySelector<HTMLButtonElement>("button#sound");
   expect(toggle, "a Sound button sits with the other HUD buttons").not.toBeNull();
   expect(toggle!.classList.contains("hud-button")).toBe(true);
+  // the words say the state; a pressed state as well would read as a double
+  // negative ("Sound off, not pressed")
   expect(toggle!.textContent?.trim()).toMatch(/^Sound (on|off)$/);
-  expect(toggle!.getAttribute("aria-pressed")).toMatch(/^(true|false)$/);
+  expect(toggle!.hasAttribute("aria-pressed")).toBe(false);
 });

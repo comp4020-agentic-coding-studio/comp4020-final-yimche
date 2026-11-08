@@ -69,8 +69,9 @@ export function cues(before: Heard | null, after: Heard | null, msg?: Said, you:
 
   // messages: a catch notice, and the server's answer to Space
   if (msg?.t === "catch" && "caughtId" in msg) {
-    if (msg.caughtId !== you.id) out.push("catch");
-    else out.push(msg.catcherId ? "caught" : "fell");
+    // a fall is a fall whoever it took; a catch is yours or someone else's
+    if (!msg.catcherId) out.push("fell");
+    else out.push(msg.caughtId === you.id ? "caught" : "catch");
   }
   if (msg?.t === "used" && "ok" in msg) {
     if (msg.ok) out.push("use");

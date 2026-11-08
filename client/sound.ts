@@ -73,7 +73,7 @@ export function playCue(ac: BaseAudioContext, out: AudioNode, cue: Cue, at = ac.
       tone(ac, out, at, 880, 0.12, 0.5, "triangle");
       break;
     case "start": // lights out: a falling sweep into the dark
-      tone(ac, out, at, 660, 0.7, 0.3, "sawtooth", 110);
+      tone(ac, out, at, 660, 0.7, 0.18, "triangle", 110);
       tone(ac, out, at, 330, 0.9, 0.3, "sine", 55);
       break;
     case "flash": // a bright shimmer that fades with the light
@@ -115,7 +115,7 @@ export function playCue(ac: BaseAudioContext, out: AudioNode, cue: Cue, at = ac.
       tone(ac, out, at + 0.05, 500, 1.2, 0.3, "sine", 40);
       break;
     case "win": // a rising major arpeggio, held
-      for (const [i, m] of [69, 73, 76, 81].entries()) tone(ac, out, at + i * 0.12, hz(m), 1.2 - i * 0.12, 0.16, "triangle");
+      for (const [i, m] of [69, 73, 76, 81].entries()) tone(ac, out, at + i * 0.12, hz(m), 1.2 - i * 0.12, 0.22, "triangle");
       break;
     case "lose": // a slow falling minor line
       for (const [i, m] of [69, 67, 64, 57].entries()) tone(ac, out, at + i * 0.22, hz(m), 0.5, 0.18, "triangle");
@@ -184,6 +184,9 @@ export function makeMusic(ac: BaseAudioContext, out: AudioNode, seed = 7): Music
       // pulse: quicker as the dark closes in, a beat every 0.9 s down to 0.45 s
       while (beatAt < until) {
         tone(ac, pulseBus, beatAt, 55, 0.3, 0.3, "sine", 40);
+        // an octave and two up, quietly, so a phone's small speaker still
+        // carries the beat its low thump is too deep for
+        tone(ac, pulseBus, beatAt, 220, 0.15, 0.08, "triangle", 165);
         beatAt += 0.9 - 0.45 * pulse;
       }
     },
@@ -264,12 +267,26 @@ export function wake(): void {
 
 // Plays the cues a moment calls for. Each is recorded for the testers' driver
 // whenever sound is on, even before the first gesture lets the context start.
+// A beam sweeping on and off your back warns once, not every tick; and the
+// win or lose comes just after a catch that ended the round, not on top of it.
+const LIT_GAP_MS = 1500;
+const END_DELAY_S = 0.6;
+let litAt = -Infinity;
+let outAt = -Infinity; // when the last catch or fall sounded
 export function play(list: Cue[]): void {
   if (!on) return;
   for (const c of list) {
     if (!CUES.includes(c)) continue;
+    if (c === "lit") {
+      if (performance.now() - litAt < LIT_GAP_MS) continue;
+      litAt = performance.now();
+    }
     window.__cues.push(c);
-    if (ac && chain && ac.state === "running") playCue(ac, chain.effects, c);
+    const now = performance.now();
+    if (c === "catch" || c === "caught" || c === "fell") outAt = now;
+    // the catch message and the round's end arrive a tick apart at most
+    const later = (c === "win" || c === "lose") && now - outAt < 500 ? END_DELAY_S : 0;
+    if (ac && chain && ac.state === "running") playCue(ac, chain.effects, c, ac.currentTime + later);
   }
 }
 
