@@ -37,6 +37,12 @@ app, and they are part of what gets marked.
   in front of the target), with a held beam, never a flash. The
   game rules are written as tests named the way a player would say them; a new
   rule gets a new test before it's trusted.
+- **The board shows accounts only.** A guest's record is shown to them
+  alone; `spec/multiplayer.test.ts` guards it.
+- **It works on a phone.** Every control has a touch path (drag to move, tap
+  the slot to use a powerup), and the game fits a phone's screen. This one is
+  judged, not tested: check a visible change at phone width before calling it
+  done.
 - `/` answers and `/readme/` publishes `README.md` in full
   (`spec/invariants.test.ts`). Keep both.
 
@@ -50,8 +56,13 @@ app, and they are part of what gets marked.
 - Match the house style: small commented modules, no framework, one process
   holding every room in memory (the app is single-machine by `fly.toml`, and
   players in a room only meet if they reach the same process).
-- `README.md` is the crit material and changes as the game does; update it in
-  the same commit as a change to the rules.
+- `README.md` is the argument for what good means here, kept to 400 to 600
+  words: the definition of good, which claims are enforced and which judged,
+  sources, and what was left out. It is not the manual. The full rules live in
+  `docs/how-to-play.md` (published at `/readme/docs/how-to-play.md`); update
+  that in the same commit as a change to the rules, and the README only when
+  the change touches what good means. A new claim of good in the README
+  needs a rule here and, if it can be tested, a test in `spec/`.
 - **Watch the finished thing run, don't just read it.** Tests prove the rules;
   only playing a round (or screenshotting one) shows whether it reads and
   feels right. Check a visible change in the running app before calling it done.
