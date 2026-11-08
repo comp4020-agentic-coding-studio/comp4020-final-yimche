@@ -27,11 +27,15 @@ export const ICE = "200 238 255";
 // of ice round them that breathes in and out, wide enough to sit outside the
 // frost and the stun ring, so you can find them across the maze at a glance.
 // Drawn under the player's dot.
+// the ring's radius in player radii, at its widest less a breath; a revealed
+// rival's name sits above it
+export const REVEAL_RING = 2.3;
+export const REVEAL_LIFT = PLAYER_RADIUS * (REVEAL_RING + 0.15 - 1) + 0.04;
 export function revealRing(v: View, x: number, y: number, now: number): void {
   const { ctx, scale } = v;
   const sx = v.offX + x * scale;
   const sy = v.offY + y * scale;
-  const r = PLAYER_RADIUS * scale * (2.3 + 0.15 * Math.sin(now / 220));
+  const r = PLAYER_RADIUS * scale * (REVEAL_RING + 0.15 * Math.sin(now / 220));
   const glow = ctx.createRadialGradient(sx, sy, r * 0.4, sx, sy, r * 1.5);
   glow.addColorStop(0, `rgb(${ICE} / 0.35)`);
   glow.addColorStop(1, `rgb(${ICE} / 0)`);
@@ -129,7 +133,8 @@ export function beam(v: View, c: CanvasRenderingContext2D, x: number, y: number,
 // A player: their colour, a dark rim, a notch showing which way they face (so
 // you can tell whose back is turned), and their name above. Red when lit.
 // The label uses whatever font the caller set.
-export function dot(v: View, x: number, y: number, facing: number, colour: string, label: string, lit = false): void {
+// `lift` raises the name further, clear of a ring drawn round the dot.
+export function dot(v: View, x: number, y: number, facing: number, colour: string, label: string, lit = false, lift = 0): void {
   const { ctx, scale } = v;
   const sx = v.offX + x * scale;
   const sy = v.offY + y * scale;
@@ -146,9 +151,10 @@ export function dot(v: View, x: number, y: number, facing: number, colour: strin
   ctx.arc(sx + Math.cos(facing) * r * 0.5, sy + Math.sin(facing) * r * 0.5, r * 0.28, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "rgb(10 12 20 / 0.6)";
-  ctx.fillText(label, sx + 1, sy - r - 5 + 1);
+  const ly = sy - r - 5 - lift * scale;
+  ctx.fillText(label, sx + 1, ly + 1);
   ctx.fillStyle = "#eef0f5";
-  ctx.fillText(label, sx, sy - r - 5);
+  ctx.fillText(label, sx, ly);
 }
 
 // Frozen: the dot sealed in a block of ice, a hexagon with a bright rim and a

@@ -590,7 +590,7 @@ function frame(now: number): void {
   for (const o of state.others) {
     // the rival your freeze stopped shows through the dark, ringed in ice
     if (o.revealed) look.revealRing(view(), o.x, o.y, now);
-    dot(o.x, o.y, o.facing, colourOf(o.id), nameOf(o.id));
+    dot(o.x, o.y, o.facing, colourOf(o.id), nameOf(o.id), false, o.revealed ? look.REVEAL_LIFT : 0);
     if (o.frozen) frost(o.x, o.y, now);
     if (state.phase === "playing") shield(o.x, o.y, o.cooldownMs, o.cooldownHeld, now);
   }
@@ -916,8 +916,8 @@ $("copy").addEventListener("click", async () => {
 
 // A player, the ice on a frozen one and the stun ring, drawn as look.ts
 // draws them, on the round's maze.
-function dot(x: number, y: number, facing: number, colour: string, label: string, lit = false): void {
-  look.dot(view(), x, y, facing, colour, label, lit);
+function dot(x: number, y: number, facing: number, colour: string, label: string, lit = false, lift = 0): void {
+  look.dot(view(), x, y, facing, colour, label, lit, lift);
 }
 function frost(x: number, y: number, now: number): void {
   look.frost(view(), x, y, now);
@@ -949,7 +949,8 @@ function bannerText(s: State): string {
       if (s.me?.status === "spectating" && mode === "duel") return "Watching the duel; you're up when it's your turn";
       if (s.me?.status === "spectating") return "Round in progress; you're in the next one";
       if (s.me?.lit) return "You're in someone's light. Move!";
-      if (s.me?.frozenMs) return `Frozen! ${Math.ceil(s.me.frozenMs / 1000)}s`;
+      // a rival's freeze shows you to them, though nobody is named
+      if (s.me?.frozenMs) return `Frozen! ${Math.ceil(s.me.frozenMs / 1000)}s; a rival can see you`;
       if (s.me?.dimmedMs) return `Blackout! Your torch is dimmed for ${Math.ceil(s.me.dimmedMs / 1000)}s`;
       if (s.me?.cooldownHeld) return "Stunned! No catches until the light comes off";
       if (s.me?.cooldownMs) return `Stunned! No catches between you for ${Math.ceil(s.me.cooldownMs / 1000)}s`;
