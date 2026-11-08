@@ -23,15 +23,26 @@ export const LIGHT = "255 236 196";
 export const PLAYER_COLOURS = ["#5cc8d8", "#f08a6c", "#9b8cf0", "#7fd08a", "#f0a3c8", "#e8c46a", "#6ea8f5", "#d4d4dc"];
 // frost: the pale blue a frozen player and their stuck beam are tinted with
 export const ICE = "200 238 255";
-// A freeze that would land: the beam's path, already filled, gets a bright
-// ice edge that pulses, so "ready" reads apart from a frozen beam, which is
-// only a flat pale tint. Call it straight after filling the beam's path.
-export function readyEdge(v: View, now: number): void {
+// The rival your own freeze stopped, shown to you through the dark: a ring
+// of ice round them that breathes in and out, wide enough to sit outside the
+// frost and the stun ring, so you can find them across the maze at a glance.
+// Drawn under the player's dot.
+export function revealRing(v: View, x: number, y: number, now: number): void {
   const { ctx, scale } = v;
+  const sx = v.offX + x * scale;
+  const sy = v.offY + y * scale;
+  const r = PLAYER_RADIUS * scale * (2.3 + 0.15 * Math.sin(now / 220));
+  const glow = ctx.createRadialGradient(sx, sy, r * 0.4, sx, sy, r * 1.5);
+  glow.addColorStop(0, `rgb(${ICE} / 0.35)`);
+  glow.addColorStop(1, `rgb(${ICE} / 0)`);
+  ctx.fillStyle = glow;
+  ctx.fillRect(sx - r * 1.5, sy - r * 1.5, r * 3, r * 3);
   ctx.save();
-  ctx.strokeStyle = `rgb(${ICE} / ${0.7 + 0.3 * Math.sin(now / 160)})`;
-  ctx.lineWidth = Math.max(2, scale * 0.09);
-  ctx.lineJoin = "round";
+  ctx.strokeStyle = `rgb(${ICE} / 0.95)`;
+  ctx.lineWidth = Math.max(2, scale * 0.08);
+  ctx.setLineDash([Math.max(3, scale * 0.16), Math.max(2, scale * 0.08)]);
+  ctx.beginPath();
+  ctx.arc(sx, sy, r, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }

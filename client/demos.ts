@@ -12,12 +12,13 @@ import {
   COLLIDE_DISTANCE,
   FREEZE_MS,
   SAFE_HALF_ANGLE,
+  canSee,
   inBeam,
   isBehind,
   type Body,
   type Maze,
 } from "../shared/world.ts";
-import { ICE, LIGHT, dot, readyEdge, floor as drawFloor, frost, shield, beam as torchBeam, type View } from "./look.ts";
+import { ICE, LIGHT, dot, revealRing, floor as drawFloor, frost, shield, beam as torchBeam, type View } from "./look.ts";
 
 // A small open room, walled all round: enough space to show the motion, with
 // nothing in the middle to hide the geometry it's demonstrating.
@@ -33,15 +34,17 @@ const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 // A canvas, how long its loop runs, the moment that shows its point best
 // (drawn still under reduced motion), and a draw function of the time since
-// the loop started, in seconds.
+// the loop started, in seconds. It plays in the open room unless it names
+// a maze of its own.
 interface Demo {
   id: string;
   seconds: number;
   keyFrame: number;
+  maze?: Maze;
   draw(v: View, t: number): void;
 }
 
-function view(canvas: HTMLCanvasElement): View {
+function view(canvas: HTMLCanvasElement, maze: Maze = ROOM): View {
   const ctx = canvas.getContext("2d")!;
   const dpr = devicePixelRatio || 1;
   const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
@@ -50,10 +53,10 @@ function view(canvas: HTMLCanvasElement): View {
     canvas.width = w;
     canvas.height = h;
   }
-  const scale = Math.min(canvas.width / ROOM.w, canvas.height / ROOM.h);
-  const offX = (canvas.width - ROOM.w * scale) / 2;
-  const offY = (canvas.height - ROOM.h * scale) / 2;
-  return { ctx, maze: ROOM, scale, offX, offY };
+  const scale = Math.min(canvas.width / maze.w, canvas.height / maze.h);
+  const offX = (canvas.width - maze.w * scale) / 2;
+  const offY = (canvas.height - maze.h * scale) / 2;
+  return { ctx, maze, scale, offX, offY };
 }
 
 // Smoothstep, for motion that starts and ends gently.
@@ -294,50 +297,80 @@ function flashDemo(): Demo {
   };
 }
 
-// 4. Freeze: the beam turns ice, then the catch
+// 4. Freeze: a rival out of sight, revealed, then the catch
 
-// The rival stands with its back turned. The seeker walks in looking away,
-// then turns its torch onto the rival: the moment the rival is in its beam,
-// the beam turns ice exactly as it would with a freeze in hand and ready.
-// The rival freezes solid, and the seeker steps round to the back and holds
-// the beam for the catch. The walk in ends where the step round begins.
+// The same room with a wall across the middle. The seeker stands on one
+// side in the dark; the rival is on the other, out of sight, back turned.
+// The seeker uses a freeze: it needs no beam, and the rival freezes where
+// they are and shows through the dark, ringed in ice, to the seeker alone.
+// The seeker walks round the wall and holds the beam on the rival's side
+// for the catch. Who is seen and when the catch lands are worked out by the
+// shared canSee, inBeam and isBehind, as the server works them out.
+const WALLED: Maze = {
+  w: 9,
+  h: 6,
+  rows: ["#########", "#.......#", "#...#...#", "#...#...#", "#.......#", "#########"],
+};
+
 function freezeDemo(): Demo {
-  const rival: Body = { x: 6, y: 3, facing: Math.PI }; // back turned to the east
+  const rival: Body = { x: 6.8, y: 2.5, facing: 0 }; // back turned to the wall
   const seconds = 7;
-  const freezeAt = 2.2;
+  const freezeAt = 1;
   const thawAt = freezeAt + FREEZE_MS / 1000;
-  const rx = 1.6; // the step round is an ellipse that stays inside the walls
-  const ry = 1.6;
+  const walk = 2.6; // round the wall
+  const path: [number, number][] = [[2.5, 2.5], [2.5, 4.4], [5.4, 4.4]];
+  const legs = path.slice(1).map(([x, y], i) => Math.hypot(x - path[i][0], y - path[i][1]));
+  const total = legs.reduce((a, b) => a + b, 0);
   const seekerPos = (t: number): Body => {
-    if (t < freezeAt) {
-      const k = ease(t / freezeAt);
-      const x = 1.5 + k * (rival.x - rx - 1.5);
-      const turn = ease(Math.min(1, t / 1.2));
-      return { x, y: 3, facing: -Math.PI / 2 + turn * (Math.PI / 2) };
-    }
-    const k = ease(Math.min(1, (t - freezeAt) / 2.2));
-    const a = Math.PI + k * Math.PI * 0.95; // from the front, over the top, round behind
-    const x = rival.x + Math.cos(a) * rx;
-    const y = rival.y + Math.sin(a) * ry;
-    return { x, y, facing: Math.atan2(rival.y - y, rival.x - x) };
+    const k = ease(Math.min(1, Math.max(0, (t - freezeAt - 0.2) / walk)));
+    let d = k * total;
+    let i = 0;
+    while (i < legs.length - 1 && d > legs[i]) d -= legs[i++];
+    const [x0, y0] = path[i];
+    const [x1, y1] = path[i + 1];
+    const f = Math.min(1, d / legs[i]);
+    const x = x0 + (x1 - x0) * f;
+    const y = y0 + (y1 - y0) * f;
+    // facing the way it walks, and once round the wall, at the rival
+    const facing = k >= 1 || (i === legs.length - 1 && f > 0.6) ? Math.atan2(rival.y - y, rival.x - x) : Math.atan2(y1 - y0, x1 - x0);
+    return { x, y, facing: k === 0 ? 0 : facing };
   };
   const { held, caughtAt } = expose(seconds, (t) => {
     const seeker = seekerPos(t);
-    return t >= freezeAt && inBeam(ROOM, seeker, rival) && isBehind(rival, seeker);
+    return t >= freezeAt && inBeam(WALLED, seeker, rival) && isBehind(rival, seeker);
   });
   return {
     id: "demo-freeze",
     seconds,
-    keyFrame: freezeAt + 0.4,
+    maze: WALLED,
+    keyFrame: freezeAt + 0.6,
     draw(v, t) {
       const seeker = seekerPos(t);
-      const lit = inBeam(ROOM, seeker, rival);
-      const ready = t < freezeAt && lit; // would land, same test as freezeReady
       const frozen = t >= freezeAt && t < Math.min(thawAt, caughtAt);
+      const { ctx, scale, offX, offY } = v;
       drawFloor(v);
-      fill(v, seeker.x, seeker.y, seeker.facing, ready ? `rgb(${ICE} / 0.4)` : frozen ? `rgb(${ICE} / 0.26)` : `rgb(${LIGHT} / 0.26)`);
-      if (ready) readyEdge(v, t * 1000);
-      target(v, rival, t, caughtAt, held(t) > 0);
+      // the dark over everything but the seeker's torch and the small circle round them
+      ctx.fillStyle = "rgb(6 8 14 / 0.82)";
+      ctx.fillRect(offX, offY, WALLED.w * scale, WALLED.h * scale);
+      ctx.save();
+      torchBeam(v, ctx, seeker.x, seeker.y, seeker.facing);
+      ctx.arc(offX + seeker.x * scale, offY + seeker.y * scale, scale * 1.3, 0, Math.PI * 2);
+      ctx.clip("nonzero");
+      drawFloor(v);
+      ctx.restore();
+      fill(v, seeker.x, seeker.y, seeker.facing, `rgb(${LIGHT} / 0.26)`);
+      // the freeze going off: a ring of ice spreads from the seeker
+      const since = t - freezeAt;
+      if (since >= 0 && since < 0.6) {
+        ctx.strokeStyle = `rgb(${ICE} / ${1 - since / 0.6})`;
+        ctx.lineWidth = Math.max(2, scale * 0.08);
+        ctx.beginPath();
+        ctx.arc(offX + seeker.x * scale, offY + seeker.y * scale, scale * (0.4 + since * 3), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // the rival shows only in sight, or while the freeze reveals them
+      if (frozen) revealRing(v, rival.x, rival.y, t * 1000);
+      if (frozen || t >= caughtAt || canSee(WALLED, seeker, rival)) target(v, rival, t, caughtAt, held(t) > 0);
       if (frozen) frost(v, rival.x, rival.y, t * 1000);
       dot(v, seeker.x, seeker.y, seeker.facing, SEEKER, "");
       seamFade(v, t, seconds);
@@ -384,7 +417,7 @@ function renderStill(): void {
   for (const demo of DEMOS) {
     if (playing.has(demo.id)) continue;
     const canvas = document.getElementById(demo.id) as HTMLCanvasElement | null;
-    if (canvas) demo.draw(view(canvas), demo.keyFrame);
+    if (canvas) demo.draw(view(canvas, demo.maze), demo.keyFrame);
   }
 }
 
@@ -395,10 +428,10 @@ function playOnce(demo: Demo, canvas: HTMLCanvasElement): void {
     const t = (now - start) / 1000;
     if (!isVisible() || t >= demo.seconds) {
       playing.delete(demo.id);
-      if (isVisible()) demo.draw(view(canvas), demo.keyFrame);
+      if (isVisible()) demo.draw(view(canvas, demo.maze), demo.keyFrame);
       return;
     }
-    demo.draw(view(canvas), t);
+    demo.draw(view(canvas, demo.maze), t);
     playing.set(demo.id, requestAnimationFrame(step));
   };
   playing.set(demo.id, requestAnimationFrame(step));
@@ -429,7 +462,7 @@ function tick(now: number): void {
   for (const demo of DEMOS) {
     const canvas = document.getElementById(demo.id) as HTMLCanvasElement | null;
     if (!canvas || canvas.offsetParent === null) continue; // not on screen right now
-    demo.draw(view(canvas), now / 1000 - Math.floor(now / 1000 / demo.seconds) * demo.seconds);
+    demo.draw(view(canvas, demo.maze), now / 1000 - Math.floor(now / 1000 / demo.seconds) * demo.seconds);
   }
   frame = requestAnimationFrame(tick);
 }

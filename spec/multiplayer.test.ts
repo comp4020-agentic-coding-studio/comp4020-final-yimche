@@ -273,7 +273,7 @@ async function fetchPowerup(p: Client, other: Client, kind: string): Promise<voi
   });
 }
 
-it("a powerup nobody can use is answered as refused, and kept", async () => {
+it("a freeze over the wire: the user is shown the rival it stopped, and that rival's own powerup is refused and kept", async () => {
   const hostCookie = await signUp("icy");
   const { id } = await (await post("/api/maps", { name: `Open ${unique()}`, rows: openMap() }, hostCookie)).json();
   const room = await newRoom();
@@ -284,20 +284,31 @@ it("a powerup nobody can use is answered as refused, and kept", async () => {
   await within(1000, () => host.messages.find((m) => m.t === "roster" && m.map?.id === id));
   host.ws.send(JSON.stringify({ t: "start" }));
   await within(5000, () => host.messages.find((m) => m.t === "state" && m.phase === "playing"));
+  await fetchPowerup(other, host, "speed");
   await fetchPowerup(host, other, "freeze");
-  await new Promise((r) => setTimeout(r, 200)); // both torches settle, pointing apart
   const before = host.messages.length;
   host.ws.send(JSON.stringify({ t: "use" }));
   const used = await within(1000, () => host.messages.slice(before).find((m) => m.t === "used"));
-  expect(used).toEqual({ t: "used", kind: "freeze", ok: false, frozen: false });
-  const at = host.messages.indexOf(used);
-  const next = await within(1000, () => host.messages.slice(at).find((m) => m.t === "state"));
-  expect(next.me.item).toBe("freeze");
-  // the answer goes to the one who pressed, nobody else
-  expect(other.messages.some((m) => m.t === "used")).toBe(false);
+  expect(used).toEqual({ t: "used", kind: "freeze", ok: true, frozen: false });
+  // the one rival is frozen, and the user's view has them, marked revealed
+  const after = host.messages.indexOf(used);
+  const shown = await within(1000, () => host.messages.slice(after).find((m) => m.t === "state"));
+  expect(shown.others).toContainEqual(expect.objectContaining({ frozen: true, revealed: true }));
+  const frozen = await within(1000, () => other.messages.findLast((m) => m.t === "state" && m.me.frozenMs > 0));
+  expect(frozen.others.some((o: any) => "revealed" in o)).toBe(false);
+  // the frozen rival presses Space: refused, said why, and kept
+  const mark = other.messages.length;
+  other.ws.send(JSON.stringify({ t: "use" }));
+  const refused = await within(1000, () => other.messages.slice(mark).find((m) => m.t === "used"));
+  expect(refused).toEqual({ t: "used", kind: "speed", ok: false, frozen: true });
+  const at = other.messages.indexOf(refused);
+  const next = await within(1000, () => other.messages.slice(at).find((m) => m.t === "state"));
+  expect(next.me.item).toBe("speed");
+  // each answer goes to the one who pressed, nobody else
+  expect(host.messages.filter((m) => m.t === "used")).toHaveLength(1);
   host.ws.close();
   other.ws.close();
-}, 20_000); // a real countdown, then a real walk to a pickup
+}, 30_000); // a real countdown, then two real walks to a pickup
 
 it("everyone hears who caught whom, but only the one caught is told from which side", async () => {
   const hostCookie = await signUp("stalker");

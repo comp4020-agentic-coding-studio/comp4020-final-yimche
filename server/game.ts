@@ -90,10 +90,12 @@ export interface Player extends Body {
   xrayUntil: number;
   // when a rival's freeze on this player wears off
   frozenUntil: number;
+  // the rival this player's own freeze stopped, shown to this player alone
+  // wherever they are until it wears off
+  revealing: { id: string; until: number } | null;
   // a still copy of this player left behind, until it fades; nothing can catch
-  // it. A rival's freeze can land on it, and then it shows frozen as its owner
-  // would, for the same time, without stopping the owner.
-  decoy: (Body & { until: number; frozenUntil: number }) | null;
+  // it. While its owner is frozen it shows frozen too.
+  decoy: (Body & { until: number }) | null;
   // when a rival's blackout on this player's torch wears off
   dimmedUntil: number;
 }
@@ -124,7 +126,7 @@ export interface CatchEvent {
 const rivals = (a: Player, b: Player) => a.team === null || a.team !== b.team;
 
 // How far a player's torch reaches now: the whole way, or half while a
-// rival's blackout dims it. Seeing, catching, stand-offs and freezes all use it.
+// rival's blackout dims it. Seeing, catching and stand-offs all use it.
 const reach = (p: Player, now: number) => (p.dimmedUntil > now ? BEAM_RANGE * BLACKOUT_REACH : BEAM_RANGE);
 
 export class Game {
@@ -195,6 +197,7 @@ export class Game {
         speedUntil: 0,
         xrayUntil: 0,
         frozenUntil: 0,
+        revealing: null,
         decoy: null,
         dimmedUntil: 0,
       };
@@ -359,12 +362,13 @@ export class Game {
   // Uses the powerup you're carrying, mid-round only, and empties the slot. A
   // speed boost and an x-ray torch last a few seconds, and the next powerup
   // can't be used until the running one wears off; a teleport drops you in a
-  // random room ahead of where you face. A freeze stops every rival in your
-  // beam right now, walls in the way, and with nobody there it isn't spent.
-  // A rival's decoy in the beam is frozen too, in look only: it shows frost
-  // for the same time, so a freeze never tells you which was the decoy. A
-  // decoy is a still copy of you where you stand, facing where you face; like
-  // a freeze it's over in an instant for you, and a new one replaces the old.
+  // random room ahead of where you face. A freeze needs no beam: it picks one
+  // rival at random from everyone still in who isn't you or on your side,
+  // wherever they are, and stops them for a few seconds. For that long you,
+  // and only you, are shown where they are. With no rival left it isn't
+  // spent. A decoy is a still copy of you where you stand, facing where you
+  // face; like a freeze it's over in an instant for you, and a new one
+  // replaces the old.
   // A blackout dims every rival's torch to half its reach for a few seconds,
   // and is over in an instant for you too. Nothing can be used while
   // you're frozen yourself. Returns whether it was used.
@@ -373,24 +377,20 @@ export class Game {
     if (!p || p.status !== "alive" || this.phase !== "playing" || !p.item) return false;
     if (p.speedUntil > now || p.xrayUntil > now || p.frozenUntil > now) return false;
     if (p.item === "freeze") {
-      const lit = (b: Body) => inBeam(this.maze, p, b, false, reach(p, now));
-      const others = this.alive().filter((o) => o !== p && rivals(p, o));
-      const hit = others.filter(lit);
-      const decoyed = others.flatMap((o) => (o.decoy && o.decoy.until > now && lit(o.decoy) ? [o.decoy] : []));
-      if (hit.length === 0 && decoyed.length === 0) return false;
-      for (const d of decoyed) d.frozenUntil = now + FREEZE_MS;
+      const targets = this.alive().filter((o) => o !== p && rivals(p, o));
+      if (targets.length === 0) return false;
+      const t = targets[Math.floor(Math.random() * targets.length)];
       // freezing someone already frozen starts their time over
-      for (const o of hit) {
-        o.frozenUntil = now + FREEZE_MS;
-        o.vx = o.vy = 0;
-      }
+      t.frozenUntil = now + FREEZE_MS;
+      t.vx = t.vy = 0;
+      p.revealing = { id: t.id, until: now + FREEZE_MS };
       p.item = null;
       return true;
     }
     const kind = p.item;
     p.item = null;
     if (kind === "decoy") {
-      p.decoy = { x: p.x, y: p.y, facing: p.facing, until: now + DECOY_MS, frozenUntil: 0 };
+      p.decoy = { x: p.x, y: p.y, facing: p.facing, until: now + DECOY_MS };
       return true;
     }
     if (kind === "blackout") {
@@ -656,6 +656,7 @@ export class Game {
       p.speedUntil = 0;
       p.xrayUntil = 0;
       p.frozenUntil = 0;
+      p.revealing = null;
       p.decoy = null;
       p.dimmedUntil = 0;
       p.vx = p.vy = 0;
@@ -699,16 +700,23 @@ export class Game {
 
   // What one player is allowed to know. Fog of war is enforced here, not in
   // the browser: a hidden player's position never leaves the server.
+  // The one other exception to the dark: the rival your own freeze stopped
+  // is in your view wherever they are, marked revealed, until the freeze
+  // wears off or they're out. Nobody else is told.
   viewFor(id: string, now: number) {
     const me = this.players.get(id);
     const flashMs = this.phase === "playing" ? Math.max(0, this.flashStartedAt + FLASH_MS - now) : 0;
     const seesAll = !me || me.status !== "alive" || this.phase !== "playing" || flashMs > 0;
     const xray = (p: Player) => p.xrayUntil > now;
+    const revealed =
+      me && me.status === "alive" && this.phase === "playing" && me.revealing && me.revealing.until > now
+        ? me.revealing.id
+        : null;
     const visible = [...this.players.values()].filter(
       (p) =>
         p.id !== id &&
         p.status === "alive" &&
-        (seesAll || canSee(this.maze, me, p, xray(me), reach(me, now))),
+        (seesAll || p.id === revealed || canSee(this.maze, me, p, xray(me), reach(me, now))),
     );
     // A decoy is sent exactly as its owner would be, under their id, with their
     // shield and frost, so nothing tells it apart; the dark hides it the same
@@ -719,14 +727,16 @@ export class Game {
       .filter(({ body }) => seesAll || canSee(this.maze, me, body, xray(me), reach(me, now)));
     // how long a bump or stand-off with each player still shields the pair, so both can see it
     const cooldownMs = (p: Player) => (me ? Math.max(0, (me.cooldownUntil.get(p.id) ?? 0) - now) : 0);
-    // Each copy shows its own freeze: the real one's, or the decoy's, so a
-    // freeze on either looks the same and neither gives the other away.
-    const seen = (p: Player, body: Body & { frozenUntil: number }) => ({ id: p.id, x: body.x, y: body.y, facing: body.facing,
+    // A decoy shows its owner's freeze, so a frozen player and their copy
+    // look the same and neither gives the other away. Only the real one, and
+    // only to whoever froze them, is marked revealed.
+    const seen = (p: Player, body: Body, real: boolean) => ({ id: p.id, x: body.x, y: body.y, facing: body.facing,
       cooldownMs: cooldownMs(p),
       cooldownHeld: !!me?.cooldownHeld.has(p.id),
       xray: xray(p),
-      frozen: body.frozenUntil > now,
+      frozen: p.frozenUntil > now,
       dimmed: p.dimmedUntil > now,
+      ...(real && p.id === revealed ? { revealed: true as const } : {}),
     });
     return {
       t: "state" as const,
@@ -762,7 +772,7 @@ export class Game {
               closesInMs: Math.max(0, this.playStartedAt + CLOSE_AFTER_MS - now),
             }
           : null,
-      others: [...visible.map((p) => seen(p, p)), ...decoys.map(({ owner, body }) => seen(owner, body))],
+      others: [...visible.map((p) => seen(p, p, true)), ...decoys.map(({ owner, body }) => seen(owner, body, false))],
       pickups: this.pickups,
     };
   }

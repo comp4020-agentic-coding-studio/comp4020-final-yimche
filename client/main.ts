@@ -1,14 +1,11 @@
 import {
   AURA_RADIUS,
-  BEAM_RANGE,
-  BLACKOUT_REACH,
   FLASH_MS,
   FREEZE_MS,
   PLAYER_RADIUS,
   SPEED_MS,
   XRAY_MS,
   fallDepth,
-  inBeam,
   type Kind,
   type Maze,
 } from "../shared/world.ts";
@@ -35,6 +32,8 @@ interface Seen {
   xray: boolean;
   frozen: boolean;
   dimmed: boolean;
+  // the rival your own freeze stopped, sent to you wherever they are
+  revealed?: true;
 }
 interface State {
   phase: Phase;
@@ -109,6 +108,8 @@ const drawn = { x: 0, y: 0 };
 // went out, how many you caught, how many were in it, and the moment you went
 // out, with where you stood and faced, so the dark can hold there and fade.
 const round = { startedAt: 0, catches: 0, players: 0 };
+// your freeze went off and the state naming who it stopped hasn't come yet
+let froze = false;
 let out: { at: number; x: number; y: number; facing: number; by: string | null; from: "behind" | "side" | null; place: number; lasted: number } | null = null;
 const OUT_FADE_MS = 1400; // how long the dark holds and fades once you're out
 const OUT_CARD_MS = 1100; // when the card comes up, after the moment you're out
@@ -293,13 +294,14 @@ function handle(msg: { t: string } & Record<string, any>): void {
       if (msg.catcherId === myId) round.catches++;
       if (msg.caughtId === myId) wentOut(msg.catcher, msg.from);
       break;
-    // the server's answer to Space: a freeze it turned down says why, rather
-    // than nothing happening at all
+    // the server's answer to Space: a use it turned down says why, rather
+    // than nothing happening at all. A freeze that went off is named once the
+    // next state shows who it stopped.
     case "used":
+      if (msg.ok && msg.kind === "freeze") froze = true;
       if (msg.ok || !msg.kind) break;
       if (msg.frozen) notice("You can't use a powerup while frozen");
       else if (state?.me && (state.me.speedMs > 0 || state.me.xrayMs > 0)) notice(`Wait for your ${state.me.speedMs > 0 ? "speed" : "x-ray"} to run out`);
-      else if (msg.kind === "freeze") notice("Nobody in your beam to freeze");
       break;
     case "state": {
       const first = !state?.me;
@@ -313,6 +315,12 @@ function handle(msg: { t: string } & Record<string, any>): void {
       // was lost, so a freeze you were saving doesn't just vanish
       const now = state.phase === "playing" ? state.me?.item : null;
       if (held && now && now !== held) notice(`${NAMES[now]} picked up; your ${NAMES[held]} is gone`);
+      // your freeze picked someone: the rival it reveals is who
+      const shown = state.others.find((o) => o.revealed);
+      if (shown && (froze || !prev?.others.some((o) => o.revealed && o.id === shown.id))) {
+        notice(`You froze ${roster.find((r) => r.id === shown.id)?.name ?? "a rival"}`);
+      }
+      if (shown || state.phase !== "playing") froze = false;
       if (first && state.me) Object.assign(drawn, { x: state.me.x, y: state.me.y });
       if (state.phase === "playing" && was !== "playing") {
         round.startedAt = performance.now();
@@ -531,12 +539,9 @@ function frame(now: number): void {
     ctx.fill();
   }
   if (playing && me) {
-    const ready = freezeReady(state);
-    ctx.fillStyle =
-      me.frozenMs > 0 ? `rgb(${ICE} / 0.28)` : ready ? `rgb(${ICE} / 0.42)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${LIGHT} / 0.3)`;
+    ctx.fillStyle = me.frozenMs > 0 ? `rgb(${ICE} / 0.28)` : myXray ? "rgb(170 150 255 / 0.3)" : `rgb(${LIGHT} / 0.3)`;
     beam(ctx, drawn.x, drawn.y, me.facing, myXray, myDim);
     ctx.fill();
-    if (ready) look.readyEdge(view(), now);
   }
 
   // a flash lifts the dark off the whole maze, then lets it settle back
@@ -583,6 +588,8 @@ function frame(now: number): void {
   ctx.font = `600 ${Math.max(11, scale * 0.42)}px Inter, system-ui`;
   ctx.textAlign = "center";
   for (const o of state.others) {
+    // the rival your freeze stopped shows through the dark, ringed in ice
+    if (o.revealed) look.revealRing(view(), o.x, o.y, now);
     dot(o.x, o.y, o.facing, colourOf(o.id), nameOf(o.id));
     if (o.frozen) frost(o.x, o.y, now);
     if (state.phase === "playing") shield(o.x, o.y, o.cooldownMs, o.cooldownHeld, now);
@@ -766,21 +773,6 @@ function tile(x: number, y: number, isWall: boolean, lip: boolean, depth: number
   look.tile(view(), x, y, isWall, lip, depth, now);
 }
 
-// Would a freeze land if you pressed now? Asked the way the server asks it:
-// a rival you can see in your beam, by the shared inBeam, at your torch's
-// reach now, from where the server last had you. Only drawing hangs on it;
-// the server still decides. A decoy counts, since it spends a freeze too.
-function freezeReady(s: State): boolean {
-  const me = s.me;
-  if (s.phase !== "playing" || !me || me.status !== "alive" || me.item !== "freeze") return false;
-  if (me.frozenMs > 0 || me.speedMs > 0 || me.xrayMs > 0) return false;
-  const myTeam = roster.find((p) => p.id === myId)?.team;
-  const reach = me.dimmedMs > 0 ? BEAM_RANGE * BLACKOUT_REACH : BEAM_RANGE;
-  return s.others.some(
-    (o) => !(myTeam && roster.find((p) => p.id === o.id)?.team === myTeam) && inBeam(maze, me, o, false, reach),
-  );
-}
-
 // The slot: what you're carrying, if anything. While a boost or an x-ray
 // torch runs, or you're frozen, a bar in its colour drains along the bottom,
 // and anything you picked up meanwhile waits its turn.
@@ -792,9 +784,7 @@ function inventory(s: State): void {
   if (!show || !s.me) return;
   const { item, speedMs, xrayMs, frozenMs } = s.me;
   const running = speedMs > 0 ? "speed" : xrayMs > 0 ? "xray" : null;
-  const label = freezeReady(s)
-    ? "Freeze: ready"
-    : item ? (running ? `${NAMES[item]}, after this` : NAMES[item]) : running ? NAMES[running] : "Empty";
+  const label = item ? (running ? `${NAMES[item]}, after this` : NAMES[item]) : running ? NAMES[running] : "Empty";
   if (slot.dataset.kind !== (item ?? running ?? "")) slot.dataset.kind = item ?? running ?? "";
   if ($("slot-label").textContent !== label) $("slot-label").textContent = label;
   // a frozen player can't use what they carry until it wears off

@@ -16,8 +16,8 @@ export const FLASH_MS = 1000; // how long a flash takes to fade back to dark
 
 // Powerups lie about the maze; walk over one to pick it up, and it's yours
 // until you choose to use it. You carry one at a time: walking over another
-// swaps it in, and the old one is gone. A freeze stops every rival your beam
-// is on where they stand, facing locked, for a few seconds. A decoy leaves a
+// swaps it in, and the old one is gone. A freeze stops one rival at random
+// where they stand, facing locked, for a few seconds. A decoy leaves a
 // still copy of you behind that looks like you to everyone else. A blackout
 // shortens every rival's torch for a few seconds.
 export type Kind = "speed" | "xray" | "teleport" | "freeze" | "decoy" | "blackout";

@@ -73,21 +73,20 @@ still in the dark wins the round.
    - **Teleport**: drops you in a random room somewhere ahead of where
      you're facing, a few rooms away, so you steer it by turning first. It
      breaks any beam that was on your back.
-   - **Freeze**: point your torch at someone and use it, and everyone your
-     beam is on is stuck for five seconds, unable to move or turn their torch.
-     It doesn't reach through walls and never freezes a teammate. A frozen
-     player can still be caught, and their beam still catches whoever walks
-     into it. While you carry one and a rival you can see is in your beam,
-     your beam turns ice blue with a bright pulsing edge and the slot says
-     "Freeze: ready": that's exactly when it will land. Your beam reaches as
-     far as your torch does, so someone you can make out in a flash or close
-     beside you may still be out of its reach or off to one side. With
-     nobody in your beam it doesn't go off, stays in your slot, and you're
-     told "Nobody in your beam to freeze". A decoy in your beam takes it
-     all the same: it shows frozen for five seconds just as a player would,
-     while its owner walks on, and freezing the real one leaves their decoy
-     as it was, so a freeze never gives a decoy away. While you're frozen you
-     can't use your own powerup until it wears off.
+   - **Freeze**: use it and one rival, picked at random from everyone
+     still in who isn't on your side, is stuck for five seconds wherever they
+     are, unable to move or turn their torch. You don't need to see them or
+     aim at them. For those five seconds you, and only you, see where they
+     stand: they show through the walls and the dark, ringed in ice, and a
+     notice names who you froze. The reveal ends when the freeze does, or
+     sooner if they're caught or fall. Nobody else is told anything, and
+     the one frozen isn't told who did it. A frozen player can still be
+     caught, and their beam still catches whoever walks into it. A freeze
+     only ever picks a real player, never a decoy, but a frozen player's
+     decoy shows frozen too, for the same time, so anyone who sees both
+     still can't tell which is which. With no rival left it doesn't go off
+     and stays in your slot. While you're frozen you can't use your own
+     powerup until it wears off.
    - **Decoy**: leaves a still copy of you where you stand, facing where you
      face, for eight seconds. To everyone else it looks exactly like you: it
      hides in the dark and shows in a flash like anyone, and nothing marks it
@@ -182,7 +181,9 @@ chat, not a game for strangers at scale. So good means:
   wants their record on the board.
 - **Fair, and seen to be fair.** The server decides every catch and never sends
   your browser the position of anyone you can't see, so nobody can cheat by
-  reading the network traffic. The beam you see drawn is the same geometry the
+  reading the network traffic. The two exceptions are decided there too: the
+  flash, for everyone at once, and the rival your own freeze stopped, for you
+  alone. The beam you see drawn is the same geometry the
   server judges you by.
 - **Tense rather than twitchy.** Catches need a held beam from behind or the side, not a
   flash, so the game rewards sneaking round a loop and coming up behind someone
