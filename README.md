@@ -157,6 +157,20 @@ Anyone who arrives mid-round watches and joins the next one. When a round
 ends, everyone is back in the lobby, wandering the old maze, until the host
 starts another.
 
+### Sound
+
+Every sound is made in the browser as you play, with no audio files. Under
+the game runs slow music: a low drone and a sparse minor melody, calm in the
+lobby, gaining a pulse as the dark closes in, and falling silent when the
+round ends. Over it come short cues for each count before lights out, lights
+out itself, the flash, picking up and using a powerup, a freeze, a refused
+use, a stun, a beam on your back, any catch, being caught, falling, and
+winning or losing. You only hear what you'd see or be told anyway: someone
+out of sight makes no sound at all. Sound starts with your first key press
+or tap. The Sound button in the corner, or M in the maze, turns it off and
+on, and your choice is remembered on that device. Off means off: nothing is
+started.
+
 ## What "good" means here (first take)
 
 This is a game for a handful of friends in the same room or the same group

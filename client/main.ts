@@ -16,7 +16,9 @@ import { initDemos, showDemos, stopDemos } from "./demos.ts";
 import { startEditor } from "./editor.ts";
 import * as look from "./look.ts";
 import { ICE, LIGHT, LIT, PLAYER_COLOURS, SHAKE_AHEAD, type View } from "./look.ts";
+import { cues, moodOf, type Said } from "./cues.ts";
 import { openMapTable, wireMapTable } from "./maptable.ts";
+import * as sound from "./sound.ts";
 import { LOOKS, type Look } from "./themes.ts";
 
 type Phase = "waiting" | "countdown" | "playing" | "ended";
@@ -252,7 +254,15 @@ function connect(): void {
   }
 }
 
+// The cues a message or a new state calls for, from what this player already
+// holds; see cues.ts. Who's listening matters for a catch and a team win.
+function hear(before: State | null, after: State | null, msg?: Said): void {
+  const team = roster.find((p) => p.id === myId)?.team ?? null;
+  sound.play(cues(before, after, msg, { id: myId, team, winnerTeam }));
+}
+
 function handle(msg: { t: string } & Record<string, any>): void {
+  if (msg.t === "catch" || msg.t === "used") hear(state, state, msg as Said);
   switch (msg.t) {
     case "hello":
       myId = msg.id;
@@ -294,7 +304,10 @@ function handle(msg: { t: string } & Record<string, any>): void {
       const first = !state?.me;
       const was = state?.phase;
       const held = state?.phase === "playing" ? state.me?.item : null;
+      const prev = state;
       state = msg as unknown as State;
+      hear(prev, state);
+      sound.setMood(moodOf(state, maze));
       // walking over a powerup while carrying another swaps it in; say what
       // was lost, so a freeze you were saving doesn't just vanish
       const now = state.phase === "playing" ? state.me?.item : null;
@@ -360,6 +373,28 @@ addEventListener("keydown", (e) => {
   use();
 }, { capture: true });
 $("slot").addEventListener("click", use);
+
+// Sound: the HUD button or M in the maze turns it on and off, remembered on
+// this device. The first key press or tap starts the audio, since a browser
+// won't play any before one; while it's off, nothing is started at all.
+const soundButton = $<HTMLButtonElement>("sound");
+function showSound(): void {
+  soundButton.textContent = sound.soundOn() ? "Sound on" : "Sound off";
+  soundButton.setAttribute("aria-pressed", String(sound.soundOn()));
+}
+function toggleSound(): void {
+  sound.setSound(!sound.soundOn());
+  showSound();
+}
+showSound();
+soundButton.addEventListener("click", toggleSound);
+addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() !== "m" || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (document.activeElement !== canvas || dialogOpen()) return;
+  toggleSound();
+});
+addEventListener("keydown", sound.wake);
+addEventListener("pointerdown", sound.wake);
 
 addEventListener("keydown", (e) => {
   const dir = keyDirection(e);

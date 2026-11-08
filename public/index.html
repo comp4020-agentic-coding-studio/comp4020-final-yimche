@@ -13,7 +13,7 @@
   </head>
   <body class="game">
     <main class="stage" aria-label="Maze">
-      <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys, and use a powerup with Space."></canvas>
+      <canvas id="maze" tabindex="0" aria-label="The maze. Move with WASD or the arrow keys, use a powerup with Space, and turn sound on or off with M."></canvas>
 
       <!-- what a player needs mid-round, always on screen: the room and who's left -->
       <div class="hud">
@@ -23,6 +23,7 @@
           <a class="hud-button" href="/">Other rooms</a>
           <button id="open-help" type="button" class="hud-button" aria-haspopup="dialog" aria-controls="window">How to play</button>
           <button id="open-scores" type="button" class="hud-button" aria-haspopup="dialog" aria-controls="window">Scores</button>
+          <button id="sound" type="button" class="hud-button" aria-pressed="true" aria-keyshortcuts="M">Sound on</button>
         </p>
         <p id="hud-count" class="hud-count">No opponents yet</p>
       </div>
