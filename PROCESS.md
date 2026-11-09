@@ -21,10 +21,10 @@ The work landed in three steps:
 ### Directing and grounding the agent
 
 I gave the agent the rules as a player would feel them ("a flash doesn't
-catch, a held beam on someone's back does"), then made each rule a test in
-`spec/game.test.ts` before trusting it. The tests are named as rules of the
-game, so the spec reads as the game's rulebook and a failing test says which
-rule broke.
+catch, a beam held on someone's back for a long enough time does"), then made
+each rule a test in `spec/game.test.ts` before trusting it.
+The tests are named as rules of the game, so the spec reads as the game's
+rulebook and a failing test says which rule broke.
 
 Two rules mattered most for correcting the work:
 
@@ -43,10 +43,11 @@ when actually playing.
 
 ## Crit 9: all at once
 
-Torchlight was real-time from the start: the server ticks every room twenty
-times a second and pushes each player their own view over a WebSocket. So the
-week's work was the decision one level up, about what each player should see
-of everyone else, and then playing more and turning what felt wrong into
+Torchlight was real-time from the start, as we knew what the assignment was from
+the beginning. The server ticks every room twenty times a second and pushes each
+player their own view over a WebSocket.
+So the week's work was the decision one level up, about what each player should
+see of everyone else, and then playing more and turning what felt wrong into
 rules.
 
 The decision is written up in
@@ -76,7 +77,7 @@ flash was changed to show everyone, with a countdown
 - **The game rules were retuned from playing.** Mazes too big for two players
   to meet were shrunk and opened up
   ([`b2c0ff0`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/b2c0ff0)),
-  and catches now count from the side as well as behind
+  and catches now count from the side as well, rather than strictly fgrom behind
   ([`c5818d4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/c5818d4)).
   Each change came with a test named as the rule.
 - **The look was redone** after I judged the black and yellow page as reading
@@ -84,6 +85,21 @@ flash was changed to show everyone, with a countdown
   ([`dacdaa4`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/dacdaa4)).
   The agent checked it in screenshots of a scripted round, which caught the
   powerup bar showing in the lobby before I saw it.
+
+### Workflow shift
+At this point in the semester, I had been utilising the skill 
+[`i-have-adhd`](https://github.com/ayghri/i-have-adhd) for basically every
+interaction I had with claude, as it made it easier and more concise to read,
+removing fluff, and also reduces the token usage.
+This would come in key when in this week, I took inspiration from the crit-9
+pod meeting where one of the groups designed a full stack developer team of
+agents to use for their crit.
+Game devs, server dev, client dev, tests writer, docs writers etc etc.
+All these agents can be found in the .claude directory.
+
+This did make the process take a lot longer than previously, but it allowed me
+to add multiple features at once, and appeared to result in less breakage of the
+program when testing. Quality control.
 
 ## Decision record: the stack
 
