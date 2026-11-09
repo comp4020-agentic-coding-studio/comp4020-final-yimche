@@ -101,6 +101,38 @@ This did make the process take a lot longer than previously, but it allowed me
 to add multiple features at once, and appeared to result in less breakage of the
 program when testing. Quality control.
 
+## Crit 10: fly by instruments
+
+The app had to tell people apart, with who may see what checked on the server.
+The cookie had held the player id that everyone in the room is sent, so anyone
+reading the wire could become someone else.
+[`d3e5d16`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/d3e5d16)
+made it a session token only its owner holds, and added accounts beside guests.
+The board shows accounts only, and a guest sees their own record alone, both
+guarded in `spec/multiplayer.test.ts`.
+
+### Correcting the harness, again
+
+The commit rule I restored in crit 9 said to commit when a batch was done, so
+accounts, game modes and the record grid all landed in `d3e5d16`.
+
+My wording allowed it, so I fixed the wording:
+[`320d2ed`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/320d2ed)
+makes it one commit per feature, made before the next starts. Everything from
+27 October follows it.
+
+## The last fortnight
+This fortnight was really just adding features and small fixes here and there.
+Also some quality of life things.
+The rest was making it good to play in one room: freeze, decoy and blackout
+powerups
+([`ec88775`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/ec88775)),
+a shared map library
+([`8c4415b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/8c4415b)),
+and a README rewritten as the argument, with every claim given a rule in
+`CLAUDE.md`
+([`90d48c2`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-yimche/commit/90d48c2)).
+
 ## Decision record: the stack
 
 **Context.** A real-time game for a few players in one room, deployed to one
