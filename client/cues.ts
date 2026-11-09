@@ -104,19 +104,22 @@ export function cues(before: Heard | null, after: Heard | null, msg?: Said, you:
 // The mood of the music: calm in the lobby and the countdown, a pulse that
 // grows as the dark closes in during a round, and silence once it ends so
 // the end cue stands alone. `pulse` runs from 0 (none) to 1 (fully closed).
+// `closing` flips once the floor has actually started falling away, which is
+// when the calm score gives way to the faster, urgent one.
 export interface Mood {
   playing: boolean;
   pulse: number;
+  closing: boolean;
 }
 
 export function moodOf(s: Heard | null, maze: { w: number; h: number }): Mood {
-  if (!s || s.phase === "ended") return { playing: false, pulse: 0 };
-  if (s.phase !== "playing" || !s.zone) return { playing: true, pulse: 0 };
+  if (!s || s.phase === "ended") return { playing: false, pulse: 0, closing: false };
+  if (s.phase !== "playing" || !s.zone) return { playing: true, pulse: 0, closing: false };
   const { x, y, r, closesInMs } = s.zone;
   // the last twenty seconds before it closes bring a faint pulse in
-  if (closesInMs > 0) return { playing: true, pulse: 0.3 * Math.max(0, 1 - closesInMs / 20_000) };
-  // then it grows with how far the floor has fallen
+  if (closesInMs > 0) return { playing: true, pulse: 0.3 * Math.max(0, 1 - closesInMs / 20_000), closing: false };
+  // then it grows with how far the floor has fallen, and the score turns urgent
   const full = Math.max(...[[0, 0], [maze.w, 0], [0, maze.h], [maze.w, maze.h]].map(([cx, cy]) => Math.hypot(cx - x, cy - y)));
   const k = full > 0 ? Math.min(1, Math.max(0, 1 - r / full)) : 1;
-  return { playing: true, pulse: 0.3 + 0.7 * k };
+  return { playing: true, pulse: 0.3 + 0.7 * k, closing: true };
 }

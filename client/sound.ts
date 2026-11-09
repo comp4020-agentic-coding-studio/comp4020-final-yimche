@@ -159,6 +159,17 @@ export function makeMusic(ac: BaseAudioContext, out: AudioNode, seed = 7): Music
   pulseBus.gain.value = 0;
   pulseBus.connect(bus);
 
+  // the closing track: once the floor has actually started falling away, a
+  // driving bassline and a ticking hat take over underneath the drone,
+  // crossfading in over a couple of seconds on a gain of its own
+  const closingBus = ac.createGain();
+  closingBus.gain.value = 0;
+  closingBus.connect(bus);
+  const EIGHTH = 60 / 140 / 2; // seconds, a driving 140 bpm
+  const BASS_LINE = [45, 45, 48, 45, 52, 45, 48, 50]; // MIDI, a short loop under A minor
+  let bassAt = ac.currentTime + 1;
+  let step = 0;
+
   let rand = seed;
   const next = () => ((rand = (rand * 1664525 + 1013904223) >>> 0) / 2 ** 32);
   let noteAt = ac.currentTime + 1;
@@ -173,6 +184,7 @@ export function makeMusic(ac: BaseAudioContext, out: AudioNode, seed = 7): Music
       bus.gain.setTargetAtTime(mood.playing ? 1 : 0, t, mood.playing ? 1.5 : 0.15);
       pulse = mood.pulse;
       pulseBus.gain.setTargetAtTime(pulse, t, 1);
+      closingBus.gain.setTargetAtTime(mood.closing ? 1 : 0, t, 0.7);
     },
     schedule(until) {
       // melody: a note every two to four seconds, stepping near the last
@@ -188,6 +200,16 @@ export function makeMusic(ac: BaseAudioContext, out: AudioNode, seed = 7): Music
         // carries the beat its low thump is too deep for
         tone(ac, pulseBus, beatAt, 220, 0.15, 0.08, "triangle", 165);
         beatAt += 0.9 - 0.45 * pulse;
+      }
+      // the closing bassline: an eighth-note walk, with a ticking hat on
+      // the off-beats and an octave-up layer so a phone speaker still carries it
+      while (bassAt < until) {
+        const note = BASS_LINE[step % BASS_LINE.length];
+        tone(ac, closingBus, bassAt, hz(note), EIGHTH * 0.9, 0.2, "sawtooth");
+        tone(ac, closingBus, bassAt, hz(note + 12), EIGHTH * 0.9, 0.05, "triangle");
+        if (step % 2 === 1) noise(ac, closingBus, bassAt, 0.05, 0.1, "highpass", 7000);
+        bassAt += EIGHTH;
+        step++;
       }
     },
   };
@@ -243,7 +265,7 @@ let on = load();
 let ac: AudioContext | null = null;
 let chain: ReturnType<typeof makeChain> | null = null;
 let music: Music | null = null;
-let mood: Mood = { playing: false, pulse: 0 };
+let mood: Mood = { playing: false, pulse: 0, closing: false };
 let timer = 0;
 
 export const soundOn = () => on;
@@ -291,7 +313,7 @@ export function play(list: Cue[]): void {
 }
 
 export function setMood(m: Mood): void {
-  if (m.playing === mood.playing && Math.abs(m.pulse - mood.pulse) < 0.02) return;
+  if (m.playing === mood.playing && m.closing === mood.closing && Math.abs(m.pulse - mood.pulse) < 0.02) return;
   mood = m;
   music?.setMood(m);
 }

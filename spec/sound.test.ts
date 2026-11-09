@@ -105,12 +105,34 @@ describe("sound follows only what you're told", () => {
 
   it("the music is calm in the lobby, pulses as the dark closes in, and stops at round end", () => {
     const maze = { w: 21, h: 21 };
-    expect(moodOf(heard({ phase: "waiting", zone: null }), maze)).toEqual({ playing: true, pulse: 0 });
+    expect(moodOf(heard({ phase: "waiting", zone: null }), maze)).toEqual({ playing: true, pulse: 0, closing: false });
     const early = moodOf(heard({ zone: { x: 10, y: 10, r: 30, closesInMs: 50_000 } }), maze).pulse;
     const closing = moodOf(heard({ zone: { x: 10, y: 10, r: 6, closesInMs: 0 } }), maze).pulse;
     expect(early).toBe(0);
     expect(closing).toBeGreaterThan(0.5);
     expect(moodOf(heard({ phase: "ended", zone: null }), maze).playing).toBe(false);
+  });
+
+  it("the music turns urgent once the floor starts falling", () => {
+    const maze = { w: 21, h: 21 };
+    const falling = (r: number) => moodOf(heard({ zone: { x: 10, y: 10, r, closesInMs: 0 } }), maze);
+    expect(falling(30).closing).toBe(true);
+    expect(falling(4).closing).toBe(true);
+    // and it grows as more of the floor goes
+    expect(falling(4).pulse).toBeGreaterThan(falling(30).pulse);
+    // the round's end silences it with the rest
+    expect(moodOf(heard({ phase: "ended", zone: null }), maze).closing).toBe(false);
+  });
+
+  it("the lobby and the first minute stay calm", () => {
+    const maze = { w: 21, h: 21 };
+    expect(moodOf(null, maze).closing).toBe(false);
+    expect(moodOf(heard({ phase: "waiting", zone: null }), maze).closing).toBe(false);
+    expect(moodOf(heard({ phase: "countdown", remainingMs: 3000, zone: null }), maze).closing).toBe(false);
+    for (const closesInMs of [60_000, 30_000, 1]) {
+      const mood = moodOf(heard({ zone: { x: 10, y: 10, r: 30, closesInMs } }), maze);
+      expect(mood.closing, `${closesInMs} ms before the floor goes`).toBe(false);
+    }
   });
 });
 

@@ -158,8 +158,10 @@ starts another.
 
 Every sound is made in the browser as you play, with no audio files. Under
 the game runs slow music: a low drone and a sparse minor melody, calm in the
-lobby, gaining a pulse as the dark closes in, and falling silent when the
-round ends. Over it come short cues for each count before lights out, lights
+lobby, gaining a pulse as the dark closes in. Once the floor actually starts
+falling away, the score turns urgent, a driving bassline and a ticking hat
+under the drone, and it falls silent when the round ends. Over it come short
+cues for each count before lights out, lights
 out itself, the flash, picking up and using a powerup, a freeze, a refused
 use, a stun, a beam on your back, any catch, being caught, falling, and
 winning or losing. You only hear what you'd see or be told anyway: someone
